@@ -65,12 +65,12 @@ Full tables, the ablations, and the method are in [docs/BENCHMARK.md](https://gi
 
 Same 200 tasks, same oracle, GPT-5.4-mini calling the tools itself. Raw tools, versus the same tools behind the proxy as it ships: the block gate plus one line from the graph on every read, every action result and every refusal. Prices are OpenAI list prices.
 
-| agent sees | completed (achievable) | correct abstain (unreachable) | claimed success falsely | invalid calls / task | tokens / task | tokens / completed task | cost / task |
-|---|---|---|---|---|---|---|---|
-| raw tools | 74% | 86% | 10 of 200 | 1.03 | 2,474 | 5,154 | $0.0022 |
-| **behind MCPgraphy** | **99%** | **100%** | **0** | **0.43** | 3,095 | **4,799** | $0.0026 |
+| agent sees | jobs finished (achievable) | correct abstain (unreachable) | claimed success falsely | invalid calls / job | **tokens per job done** | tokens per job attempted |
+|---|---|---|---|---|---|---|
+| raw tools | 74% | 86% | 10 of 200 | 1.03 | 5,154 | 2,474 |
+| **behind MCPgraphy** | **99%** | **100%** | **0** | **0.43** | **4,799** | 3,095 |
 
-Where the tokens go: raw spends 573 tokens per task, almost a quarter, on model turns that end in a call the server rejects. Behind MCPgraphy that is 314, plus 104 on turns the proxy refused. The proxy costs 25% more tokens per task, because the graph line rides on every read and result (about 60 tokens each) and because the agent finishes more of the work. Per task completed it is 7% cheaper, in fewer model turns (4.2 vs 4.5). Raw is cheap partly by giving up: on the unreachable tasks it archived a release it had been asked to make editable, then reported success.
+Measure from the start of a job to the end of it. The same total spend finishes 129 jobs behind MCPgraphy against 96 raw, so each finished job costs 7% fewer tokens, and takes fewer model turns (4.2 against 4.5). Raw spends 573 tokens per job, almost a quarter of its budget, on calls the server rejects; behind MCPgraphy that is 314. The column raw wins is tokens per job *attempted*, and it wins it partly by quitting: on the unreachable jobs it archived a release it had been asked to make editable, then reported success. At GPT-5.4-mini list prices a job costs about a quarter of a cent either way.
 
 What we tried on the way is in [docs/BENCHMARK.md](https://github.com/hemanth1999k/mcpgraphy/blob/main/docs/BENCHMARK.md): refusing calls without saying what else is possible dropped completion to 47%; a separate affordances tool was the most precise and cost 2.5x; a one-call route executor made things worse. Rerun with `OPENAI_API_KEY=... mcpgraphy benchmark llm` for about a dollar.
 

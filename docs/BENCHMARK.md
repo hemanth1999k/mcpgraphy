@@ -95,7 +95,7 @@ How to read it:
 
 - **A quarter of raw's budget is waste.** 573 of 2,474 tokens go to turns that end in a call the server rejects. The graph removes most of that; what remains is the hidden-state categories, where nothing short of the oracle knows.
 - **The proxy spends more on doing the task, not on failing it.** Productive action turns cost twice as much behind the proxy because the agent completes 129 tasks instead of 96, and each turn carries a longer context: about 180 more prompt tokens per request, mostly the accumulated graph lines.
-- **Per task completed, the proxy is cheaper, and it takes fewer turns.** 4,799 tokens against 5,154, 4.2 turns against 4.5. Per task it costs 25% more. Both numbers are true; which one matters depends on whether an abandoned task counts as cheap.
+- **Measured start of job to end of job, the proxy is cheaper.** 4,799 tokens per finished job against 5,154, in 4.2 model turns against 4.5. Per job *attempted* it costs 25% more; that column counts an abandoned job as a cheap one. The number that matters for a bill is the first.
 - **Nothing valid was blocked, and nothing false was claimed.** Zero suppressed valid calls, zero false successes, against ten false successes for raw, one of them after archiving a release the agent had been asked to make editable.
 
 ### Configurations tried on the way
