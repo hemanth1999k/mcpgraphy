@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">mcpgraphy</h1>
+  <h1 align="center">MCPgraphy</h1>
   <p align="center"><strong>Your agent's tools, mapped before it acts.</strong><br>
   A proxy for any MCP server that learns, from the agent's own calls, which tools work in which state,<br>
   and warns or blocks before the next bad call.</p>
@@ -21,7 +21,7 @@ Point your MCP host at that command instead of the server. Same tools, same argu
 
 <p align="center"><img src="https://raw.githubusercontent.com/hemanth1999k/mcpgraphy/main/docs/demo.gif" alt="mcpgraphy in front of the official filesystem MCP server: a naive agent edits and moves files that are not there, mcpgraphy learns from those calls, then blocks the same mistakes before the server sees them" width="1000"></p>
 
-<p align="center"><a href="https://github.com/hemanth1999k/mcpgraphy/blob/main/docs/explainer.mp4"><img src="https://raw.githubusercontent.com/hemanth1999k/mcpgraphy/main/docs/explainer-poster.png" alt="76 second explainer video" width="1000"></a><br><em>The 76 second version. Every number in it comes from the benchmark below.</em></p>
+<p align="center"><a href="https://github.com/hemanth1999k/mcpgraphy/blob/main/docs/explainer.mp4"><img src="https://raw.githubusercontent.com/hemanth1999k/mcpgraphy/main/docs/explainer-poster.png" alt="107 second explainer video" width="1000"></a><br><em>The 107 second version. Every number in it comes from the benchmark below.</em></p>
 
 ## The problem
 
@@ -29,9 +29,9 @@ An MCP server hands your agent a list of tools: names, descriptions, parameter s
 
 Every agent framework rediscovers this the same way: by burning calls. The server already knows the answer, it just does not say it up front, and nothing in the protocol asks.
 
-## What mcpgraphy does
+## What MCPgraphy does
 
-mcpgraphy sits between the agent and the server. The tools pass through unchanged. Around every call it reads the touched resource back, before and after, and keeps that as evidence. From the evidence it builds a **behavior graph**: nodes are the states it actually observed, edges are what happened from each state, how many times, and whether later calls agreed.
+MCPgraphy sits between the agent and the server. The tools pass through unchanged. Around every call it reads the touched resource back, before and after, and keeps that as evidence. From the evidence it builds a **behavior graph**: nodes are the states it actually observed, edges are what happened from each state, how many times, and whether later calls agreed.
 
 Then it uses the graph three ways:
 
