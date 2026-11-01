@@ -1,5 +1,5 @@
 <p align="center">
-  <h1 align="center">mcpgraphy</h1>
+  <h1 align="center">MCPgraphy</h1>
   <p align="center"><strong>Your agent's tools, mapped before it acts.</strong><br>
   A proxy for any MCP server that learns, from the agent's own calls, which tools work in which state,<br>
   and warns or blocks before the next bad call.</p>
@@ -29,9 +29,9 @@ An MCP server hands your agent a list of tools: names, descriptions, parameter s
 
 Every agent framework rediscovers this the same way: by burning calls. The server already knows the answer, it just does not say it up front, and nothing in the protocol asks.
 
-## What mcpgraphy does
+## What MCPgraphy does
 
-mcpgraphy sits between the agent and the server. The tools pass through unchanged. Around every call it reads the touched resource back, before and after, and keeps that as evidence. From the evidence it builds a **behavior graph**: nodes are the states it actually observed, edges are what happened from each state, how many times, and whether later calls agreed.
+MCPgraphy sits between the agent and the server. The tools pass through unchanged. Around every call it reads the touched resource back, before and after, and keeps that as evidence. From the evidence it builds a **behavior graph**: nodes are the states it actually observed, edges are what happened from each state, how many times, and whether later calls agreed.
 
 Then it uses the graph three ways:
 
