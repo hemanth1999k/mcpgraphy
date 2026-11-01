@@ -1,0 +1,9 @@
+{
+  "server_id": "release_sim",
+  "resource_class": "release",
+  "observation_tool": "get_release",
+  "id_param": "release_id",
+  "features": ["status", "tests_passed"],
+  "effect_classes": {"archive_release": "DESTRUCTIVE"},
+  "approval_required": ["publish_release", "archive_release"]
+}

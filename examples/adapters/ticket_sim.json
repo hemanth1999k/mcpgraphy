@@ -1,0 +1,9 @@
+{
+  "server_id": "ticket_sim",
+  "resource_class": "ticket",
+  "observation_tool": "get_ticket",
+  "id_param": "ticket_id",
+  "features": ["state"],
+  "effect_classes": {"close_ticket": "DESTRUCTIVE"},
+  "approval_required": ["close_ticket"]
+}
