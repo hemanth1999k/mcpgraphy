@@ -134,3 +134,41 @@ async def test_unknown_tools_are_forwarded_untouched(tmp_path):
                 "create_release", {"name": "X"}
             )  # no id param: unknown state
             assert not res.is_error and res.structured_content["id"].startswith("rel-new-")
+
+
+async def test_read_backs_carry_a_one_line_hint_from_the_graph(tmp_path):
+    async with _proxy(tmp_path, ProxyPolicy(mode="observe")) as proxy:
+        async with Client(proxy.server) as client:
+            await _agent_workflow(client)
+    async with _proxy(tmp_path, ProxyPolicy(mode="warn")) as proxy:
+        async with Client(proxy.server) as client:
+            # the downstream restarts with the proxy, so make a fresh draft in this session
+            rid = (await client.call_tool("create_release", {"name": "R"})).structured_content["id"]
+            res = await client.call_tool("get_release", {"release_id": rid})
+            texts = [c.text for c in res.content if getattr(c, "type", "") == "text"]
+            hint = [t for t in texts if t.startswith("mcpgraphy [")]
+            assert len(hint) == 1
+            assert "run_tests" in hint[0] and "publish_release" in hint[0]
+            assert "\n" not in hint[0]  # one line: the cheapest form that carries the graph
+            # an action's result carries the new state and the next moves too
+            acted = await client.call_tool("run_tests", {"release_id": rid})
+            after = [
+                c.text
+                for c in acted.content
+                if getattr(c, "type", "") == "text" and c.text.startswith("mcpgraphy [")
+            ]
+            assert len(after) == 1 and "publish_release" in after[0]
+            # a tool that names no resource gets no hint
+            created = await client.call_tool("create_release", {"name": "R"})
+            assert not any(
+                getattr(c, "type", "") == "text" and c.text.startswith("mcpgraphy [")
+                for c in created.content
+            )
+    async with _proxy(tmp_path, ProxyPolicy(mode="warn", hints=False)) as proxy:
+        async with Client(proxy.server) as client:
+            rid = (await client.call_tool("create_release", {"name": "R"})).structured_content["id"]
+            res = await client.call_tool("get_release", {"release_id": rid})
+            assert not any(
+                getattr(c, "type", "") == "text" and c.text.startswith("mcpgraphy [")
+                for c in res.content
+            )

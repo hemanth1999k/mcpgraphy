@@ -8,6 +8,7 @@ here executes a tool: the only call made is the declared read-only observation t
 from __future__ import annotations
 
 import re
+from collections import deque
 from dataclasses import dataclass
 
 from mcpgraphy.client_adapter import InMemoryToolClient
@@ -20,6 +21,7 @@ from mcpgraphy.models import (
     AuthStatus,
     Availability,
     BehaviorStatus,
+    EffectClass,
     Features,
     ObservedOutcome,
     Offer,
@@ -339,3 +341,136 @@ __all__ = [
     "select_offers",
     "template_action_classes",
 ]
+
+
+@dataclass(frozen=True)
+class Route:
+    """A shortest observed path from the current state to another state."""
+
+    target: Features  # the features that differ at the end of the route
+    steps: tuple[tuple[str, dict], ...]  # (tool, non-id argument template)
+    evidence: int  # the weakest edge's evidence count
+
+
+def routes_from(
+    store: GraphStore,
+    spec: ServerSpec,
+    model_version: str,
+    source_state_id: str,
+    max_depth: int = 4,
+) -> list[Route]:
+    """Breadth-first search over OBSERVED_SUPPORTED, OK edges only: routes the graph has seen
+    work, never hypothesized ones. Read-only tools and self-loops are not steps."""
+    states = store.states_for_model(model_version)
+    acs = store.action_classes(spec.server_id)
+    adj: dict[str, list[tuple[str, str, int]]] = {}
+    for t in store.transitions(model_version):
+        if (
+            t.status is not BehaviorStatus.OBSERVED_SUPPORTED
+            or t.outcome_kind is not OutcomeKind.OK
+            or not t.target_state_id
+            or t.target_state_id == t.source_state_id
+        ):
+            continue
+        ac = acs.get(t.action_class_id)
+        if ac is None or spec.tool(ac.tool).effect is EffectClass.READ_ONLY:
+            continue
+        adj.setdefault(t.source_state_id, []).append(
+            (t.action_class_id, t.target_state_id, len(t.evidence_ids))
+        )
+    best: dict[str, list[tuple[str, int]]] = {source_state_id: []}
+    q = deque([source_state_id])
+    while q:
+        cur = q.popleft()
+        if len(best[cur]) >= max_depth:
+            continue
+        for ac_id, tgt, ev in sorted(adj.get(cur, [])):
+            if tgt not in best:
+                best[tgt] = best[cur] + [(ac_id, ev)]
+                q.append(tgt)
+    src = states[source_state_id].features if source_state_id in states else {}
+    out: list[Route] = []
+    for tgt, steps in best.items():
+        if not steps or tgt not in states:
+            continue
+        tf = states[tgt].features
+        diff = {k: v for k, v in tf.items() if src.get(k) != v} or dict(tf)
+        rendered = []
+        for ac_id, _ev in steps:
+            ac = acs[ac_id]
+            tpl = {k: v for k, v in _argument_template(spec, ac, "").items() if k != spec.id_param}
+            rendered.append((ac.tool, tpl))
+        out.append(Route(diff, tuple(rendered), min(ev for _, ev in steps)))
+    out.sort(key=lambda r: (len(r.steps), sorted(r.target.items())))
+    return out
+
+
+def _call(tool: str, tpl: dict, spec: ServerSpec) -> str:
+    free_text = {CONSTANT_VALUES["VALID"]}  # probe filler text, not a value worth showing
+    args = ", ".join(f"{k}={'...' if v in free_text else v}" for k, v in tpl.items())
+    return f"{tool}({args})" if args else tool
+
+
+def inline_hint(
+    offers: list[Offer],
+    spec: ServerSpec,
+    state: Features | None = None,
+    routes: list[Route] | None = None,
+    compact: bool = False,
+) -> str:
+    """A few lines for an agent, straight from the graph: what this state supports.
+
+    Appended to read-backs, action results and refusals by the proxy so the agent learns the
+    state's affordances without spending a turn on `mcpgraphy_affordances`. Each entry names
+    the action with its non-id arguments and, when known, what it changes. `routes` adds the
+    shortest observed path to every other reachable state. `compact` drops the untested list,
+    which the tool list already implies."""
+    groups: dict[str, list[str]] = {
+        "ok": [],
+        "needs approval": [],
+        "uncertain": [],
+        "not supported": [],
+        "untested": [],
+    }
+    for o in offers:
+        if spec.tool(o.tool).effect is EffectClass.READ_ONLY:
+            continue
+        tpl = {k: v for k, v in o.argument_template.items() if k != spec.id_param}
+        label = _call(o.tool, tpl, spec)
+        effects = [e for e in o.behavior.predicted_effects if not e.startswith("call fails")]
+        av = o.availability
+        if av is Availability.CANDIDATE:
+            key = "ok"
+        elif av is Availability.CANDIDATE_REQUIRES_APPROVAL:
+            key = "needs approval"
+        elif av is Availability.UNCERTAIN_CANDIDATE:
+            key = "uncertain"
+        elif av is Availability.NOT_SUPPORTED_FROM_THIS_STATE:
+            key = "not supported"
+        else:
+            key = "untested"
+        if key in ("ok", "needs approval", "uncertain") and effects:
+            label += " -> " + "; ".join(effects)
+        groups[key].append(label)
+    head = "mcpgraphy"
+    if state:
+        head += " [" + ", ".join(f"{k}={v}" for k, v in sorted(state.items())) + "]"
+    route_parts = []
+    for r in routes or []:
+        tgt = ", ".join(f"{k}={v}" for k, v in sorted(r.target.items()))
+        route_parts.append(f"{tgt}: " + ", ".join(_call(t, a, spec) for t, a in r.steps))
+    if compact:
+        # one line, short labels, no untested list: the cheapest form that still carries the graph
+        short = {"ok": "ok", "needs approval": "approval", "uncertain": "?", "not supported": "no"}
+        parts = [
+            f"{short[k]}: {'; '.join(sorted(set(v)))}"
+            for k, v in groups.items()
+            if v and k != "untested"
+        ]
+        if route_parts:
+            parts.append("to " + " · to ".join(route_parts))
+        return head + " " + (" | ".join(parts) if parts else "nothing observed from this state")
+    lines = [f"  {k}: {'; '.join(sorted(set(v)))}" for k, v in groups.items() if v]
+    if route_parts:
+        lines.append("  routes: " + " · ".join(route_parts))
+    return head + ":\n" + "\n".join(lines)

@@ -64,6 +64,54 @@ Model level: the learned graph's edges marked supported were re-checked on five 
 - **Drift is caught, not hidden.** All false suppression comes from a `v1` graph used on a `v2` server. Thirty retest probes clear it. No graph suppressed a valid call on a server it had actually observed.
 - **Hidden state is where everyone but the oracle fails.** In categories 4, 8 and 9 the learned graph still makes about 2.5 invalid calls per task on `release_sim`. The offers say uncertain, which is correct and not enough.
 
+## With a real LLM agent
+
+`OPENAI_API_KEY=... mcpgraphy benchmark llm --model gpt-5.4-mini` runs the same 200 scenarios with a real model calling the tools. The default arms:
+
+| arm | what the agent sees |
+|---|---|
+| `raw` | the server's tools |
+| `route` | the same tools behind the proxy as it ships: block-mode gate on the passive-trace graph (every tool pre-approved, so the gate acts on evidence only), and one line from the graph on every read, every action result and every refusal: the state, what is ok from it and what each action changes, what is not supported, and the shortest observed route to each reachable state |
+
+The oracle judges every mutating call before it executes, so "invalid call" is ground truth. The model ends a task with `GOAL_REACHED` or `GOAL_UNREACHABLE`; a `GOAL_REACHED` that the read-back contradicts is a false success. Every model turn is tagged by what it produced (an action, a rejected call, a refused call, a read, the final answer), so tokens can be attributed. Tokens and dollars come from the API's usage field at list prices. The model samples, so numbers move a little between runs; repeated runs of the same configuration agreed within two points on every column.
+
+### Results, GPT-5.4-mini, 2026-11-01, 200 scenarios
+
+| arm | completed (achievable) | correct abstain (unreachable) | false success | invalid calls / task | blocked / task | valid calls blocked | model turns / task | tokens / task | tokens / completed task | cost / task |
+|---|---|---|---|---|---|---|---|---|---|---|
+| raw | 0.74 | 0.86 | 10 | 1.03 | 0 | 0 | 4.46 | 2,474 | 5,154 | $0.0022 |
+| route (default) | 0.99 | 1.00 | 0 | 0.43 | 0.15 | 0 | 4.22 | 3,095 | 4,799 | $0.0026 |
+
+Paired, route minus raw (95% bootstrap CI, n = 200): invalid calls -0.60 [-0.71, -0.48]; tokens +621 [+482, +771].
+
+Tokens per task by what the model turn produced:
+
+| arm | productive action | rejected call | refused call | read | final answer |
+|---|---|---|---|---|---|
+| raw | 563 | 573 | 0 | 713 | 625 |
+| route | 1,147 | 314 | 104 | 658 | 872 |
+
+How to read it:
+
+- **A quarter of raw's budget is waste.** 573 of 2,474 tokens go to turns that end in a call the server rejects. The graph removes most of that; what remains is the hidden-state categories, where nothing short of the oracle knows.
+- **The proxy spends more on doing the task, not on failing it.** Productive action turns cost twice as much behind the proxy because the agent completes 129 tasks instead of 96, and each turn carries a longer context: about 180 more prompt tokens per request, mostly the accumulated graph lines.
+- **Measured start of job to end of job, the proxy is cheaper.** 4,799 tokens per finished job against 5,154, in 4.2 model turns against 4.5. Per job *attempted* it costs 25% more; that column counts an abandoned job as a cheap one. The number that matters for a bill is the first.
+- **Nothing valid was blocked, and nothing false was claimed.** Zero suppressed valid calls, zero false successes, against ten false successes for raw, one of them after archiving a release the agent had been asked to make editable.
+
+### Configurations tried on the way
+
+Earlier runs of the same scenarios, same model. Each changed the design.
+
+| configuration | completed | false success | invalid / task | tokens / task | lesson |
+|---|---|---|---|---|---|
+| block only, refusal says only "observed to fail" | 0.47 | 8 | 0.38 | 2,362 | cheaper than raw, but the agent gives up; a refusal must carry the alternatives |
+| block, refusal carries the hint | 0.95 | 7 | 0.51 | 3,206 | most of the benefit, lowest overhead |
+| multi-line hint on reads only | 0.97 | 1 | 0.51 | 4,513 | reads cost a turn each; the hint belongs on action results too |
+| `mcpgraphy_affordances` as a separate tool | 0.94 | 6 | 0.36 | 6,654 | most precise, 2.5x tokens: a question is a whole extra turn |
+| `mcpgraphy_reach`: execute the route in one call (50-task sample) | 0.55 | 4 | 0.42 | 3,671 | worse: the passive graph often has no complete route, the agent asks, gets none, and stops |
+
+Caveats specific to these runs: one model, one prompt, no retries on the model's side; the graph is frozen for the run, where the real proxy keeps learning from the calls it sees; cost is list price for GPT-5.4-mini; tasks are at most six steps long, so raw's retry waste is bounded, and the proxy's per-turn overhead is not amortized over a long job.
+
 ## Caveats
 
 - The agent is a deterministic script, not an LLM. No tokens, prompts or context cost were measured.
