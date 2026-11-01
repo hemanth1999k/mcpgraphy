@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>mcpgraphy explainer</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+:root{--bg:#f7f6f2;--ink:#17181c;--soft:#5c5f69;--line:#dedbd2;--card:#ffffff;--acc:#2a46d6;--accbg:#e6eafc;--ok:#1f7a4d;--okbg:#e1f1e8;--bad:#b4382c;--badbg:#f7e1dd;--warn:#a86a12;--warnbg:#f8ecd6;--mono:'JetBrains Mono',ui-monospace,Menlo,monospace;--ease:cubic-bezier(.2,.7,.2,1)}
+*{box-sizing:border-box}
+html,body{margin:0;background:#000}
+body{color:var(--ink);font:28px/1.4 'Inter Tight',Inter,-apple-system,Segoe UI,sans-serif;-webkit-font-smoothing:antialiased}
+#stage{position:relative;width:1920px;height:1080px;overflow:hidden;background:var(--bg)}
+#stage:before{content:"";position:absolute;inset:0;background:
+ radial-gradient(1200px 600px at 90% -10%, rgba(42,70,214,.07), transparent 60%),
+ radial-gradient(900px 500px at -10% 110%, rgba(31,122,77,.05), transparent 60%)}
+section{position:absolute;inset:0;padding:150px 112px 100px;opacity:0;visibility:hidden}
+section.on{opacity:1;visibility:visible}
+.brand{position:absolute;left:112px;top:58px;display:flex;align-items:center;gap:14px;font-weight:600;font-size:26px;letter-spacing:-.01em;z-index:5}
+.brand i{width:18px;height:18px;border-radius:5px;background:var(--acc)}
+.chapter{position:absolute;right:112px;top:62px;font:500 20px var(--mono);color:var(--soft);letter-spacing:.02em;z-index:5}
+.timeline{position:absolute;left:0;bottom:0;height:5px;background:var(--acc);width:var(--w);z-index:5}
+h1{margin:0 0 18px;font-size:60px;line-height:1.12;font-weight:600;letter-spacing:-.025em;max-width:1520px}
+h1 em{font-style:normal;color:var(--acc)}
+.lead{font-size:30px;color:var(--soft);max-width:1400px;margin:0}
+.cap{position:absolute;left:112px;right:112px;bottom:118px;font-size:34px;line-height:1.3;max-width:1560px}
+.cap b{font-weight:600}
+.mono{font-family:var(--mono)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:30px 34px;box-shadow:0 1px 0 rgba(0,0,0,.02),0 12px 40px -24px rgba(23,24,28,.25)}
+.k{font-size:17px;letter-spacing:.08em;text-transform:uppercase;color:var(--soft);font-weight:600}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.acc{color:var(--acc)}.soft{color:var(--soft)}.warn{color:var(--warn)}
+.pill{display:inline-block;padding:4px 12px;border-radius:999px;font:600 18px var(--mono);letter-spacing:.02em}
+.pill.ok{background:var(--okbg);color:var(--ok)}.pill.bad{background:var(--badbg);color:var(--bad)}.pill.warn{background:var(--warnbg);color:var(--warn)}.pill.soft{background:#ecebe6;color:var(--soft)}.pill.acc{background:var(--accbg);color:var(--acc)}
+
+/* reveal helpers: elements with data-in="t" fade+rise once scene-relative time passes t */
+[data-in]{opacity:0;transform:translateY(14px);transition:opacity .45s var(--ease),transform .55s var(--ease)}
+[data-in].in{opacity:1;transform:none}
+
+/* title */
+.title{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding-top:0}
+.wordmark{display:flex;align-items:center;gap:26px;font-size:124px;font-weight:600;letter-spacing:-.045em;line-height:1}
+.wordmark i{width:46px;height:46px;border-radius:11px;background:var(--acc)}
+.tag{font-size:60px;font-weight:600;letter-spacing:-.025em;margin:44px 0 18px}
+.sub{font-size:32px;color:var(--soft)}
+
+/* terminal */
+.term{background:#1b1d24;color:#d8dbe4;border-radius:16px;padding:26px 30px;font:22px/1.55 var(--mono);box-shadow:0 30px 70px -40px rgba(0,0,0,.5)}
+.term .p{color:#8b90a0}.term .e{color:#f08f85}.term .g{color:#8fd3a8}.term .y{color:#f2c879}.term .b{color:#9db2ff}.term .d{color:#6f7484}
+.term div{white-space:pre}
+
+/* pipeline */
+.pipe{display:flex;align-items:center;gap:26px;margin-top:40px}
+.box{flex:1;padding:30px 32px;text-align:center}
+.box .t{font-size:34px;font-weight:600;letter-spacing:-.02em}
+.box .s{font-size:22px;color:var(--soft);margin-top:6px}
+.box.mid{border:2px solid var(--acc);background:var(--accbg)}
+.arrow{font-size:46px;color:var(--soft)}
+.arrow.hot{color:var(--acc)}
+
+/* graph */
+.graph{position:relative;height:560px;margin-top:20px}
+.node{position:absolute;width:300px;padding:18px 22px;text-align:center}
+.node .t{font:600 24px var(--mono)}
+.node .s{font-size:20px;color:var(--soft);margin-top:4px}
+.edge{position:absolute;height:3px;background:var(--line);transform-origin:left center}
+.edge.ok{background:var(--ok)}.edge.bad{background:var(--bad);opacity:.7}.edge.un{background:repeating-linear-gradient(90deg,var(--soft) 0 10px,transparent 10px 20px)}
+.edge.v{width:3px}.edge.v.un{background:repeating-linear-gradient(180deg,var(--soft) 0 10px,transparent 10px 20px)}
+.dot{position:absolute;width:15px;height:15px;border-radius:50%}.dot.bad{background:var(--bad)}
+.node.ghost{border:2px dashed var(--line);border-radius:18px;background:transparent;color:var(--soft)}
+.elabel{position:absolute;font:600 18px var(--mono);padding:4px 10px;border-radius:8px;background:var(--card);border:1px solid var(--line);white-space:nowrap}
+
+/* offers */
+.offer{display:grid;grid-template-columns:420px 420px 1fr;gap:20px;align-items:center;padding:22px 28px;border-bottom:1px solid var(--line);font-size:28px}
+.offer:last-child{border-bottom:0}
+.offer .n{font:600 26px var(--mono)}
+.offer .d{font-size:22px;color:var(--soft)}
+
+/* stats */
+.stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:28px;margin-top:40px}
+.stat .v{font-size:96px;font-weight:600;letter-spacing:-.04em;line-height:1}
+.stat .l{font-size:24px;color:var(--soft);margin-top:10px}
+.bar{height:22px;border-radius:11px;background:#ecebe6;overflow:hidden;margin-top:18px}
+.bar i{display:block;height:100%;background:var(--acc);width:var(--v)}
+.bar.bad i{background:var(--bad)}
+</style></head>
+<body><div id="stage">
+<div class="brand"><i></i>mcpgraphy</div>
+<div class="chapter" id="chap"></div>
+<div class="timeline" id="tl" style="--w:0px"></div>
+
+<!-- 0: title -->
+<section id="s0" class="title">
+  <div class="wordmark"><i></i>mcpgraphy</div>
+  <div class="tag" data-in="0.8">Your agent's tools, <em class="acc" style="font-style:normal">mapped</em> before it acts.</div>
+  <div class="sub" data-in="1.6">Learned, uncertainty-aware behavior graphs for MCP tools.</div>
+</section>
+
+<!-- 1: problem -->
+<section id="s1">
+  <h1 data-in="0">A tool list says what a tool is <em>called</em>.<br>Not <em>when it works</em>.</h1>
+  <div class="term" style="margin-top:36px" data-in="1.2">
+    <div><span class="p">agent →</span> edit_file(path="notes.md", …)</div>
+    <div class="e" data-in="2.0">   ENOENT: no such file or directory</div>
+    <div data-in="3.4"><span class="p">agent →</span> publish_release(release_id="demo-7")</div>
+    <div class="e" data-in="4.2">   STATE_CONFLICT: release cannot be published in its current state</div>
+    <div data-in="5.6"><span class="p">agent →</span> move_file(source="draft.md", destination="final.md")</div>
+    <div class="e" data-in="6.4">   ENOENT: no such file or directory, rename 'draft.md'</div>
+    <div class="d" data-in="7.6">   … retry … retry … </div>
+  </div>
+  <div class="cap" data-in="8.4">Errors, retries, and sometimes <b class="bad">damage</b>. The schema was never going to tell it.</div>
+</section>
+
+<!-- 2: how -->
+<section id="s2">
+  <h1 data-in="0">It sits between the agent and the server.</h1>
+  <p class="lead" data-in="0.6">Tools pass through unchanged. Before and after every call, the resource is read back. The evidence is kept.</p>
+  <div class="pipe">
+    <div class="box card" data-in="1.2"><div class="t">agent</div><div class="s">any MCP host</div></div>
+    <div class="arrow hot" data-in="1.8">→</div>
+    <div class="box card mid" data-in="2.2"><div class="t">mcpgraphy wrap</div><div class="s">observe · learn · offer · gate</div></div>
+    <div class="arrow hot" data-in="2.8">→</div>
+    <div class="box card" data-in="3.2"><div class="t">your MCP server</div><div class="s">unchanged</div></div>
+  </div>
+  <div class="term" style="margin-top:44px" data-in="4.2">
+    <div><span class="b">read</span>  get_file_info("notes.md")        <span class="d">→ exists=false</span></div>
+    <div><span class="y">call</span>  edit_file("notes.md", …)          <span class="e">→ ENOENT</span></div>
+    <div><span class="b">read</span>  get_file_info("notes.md")        <span class="d">→ exists=false</span></div>
+    <div class="g" data-in="5.8">journal ← {state: exists=false, action: edit_file, outcome: ERR_NOT_FOUND}</div>
+  </div>
+  <div class="cap" data-in="7.2">No probing. No resets. Nothing extra touches your server. <b>The agent's own calls are the evidence.</b></div>
+</section>
+
+<!-- 3: graph -->
+<section id="s3">
+  <h1 data-in="0">From evidence: <em>states</em>, and what works from each.</h1>
+  <div class="graph">
+    <!-- top row: three observed states -->
+    <div class="node card" style="left:60px;top:40px" data-in="0.6"><div class="t">DRAFT · untested</div><div class="s">observed 12×</div></div>
+    <div class="node card" style="left:760px;top:40px" data-in="1.2"><div class="t">DRAFT · tested</div><div class="s">observed 9×</div></div>
+    <div class="node card" style="left:1460px;top:40px" data-in="1.8"><div class="t">PUBLISHED</div><div class="s">observed 7×</div></div>
+    <!-- supported edges between them, labels in the gaps -->
+    <div class="edge ok" style="left:360px;top:92px;width:400px" data-in="1.0"></div>
+    <div class="elabel ok" style="left:392px;top:102px" data-in="1.0">run_tests <span class="pill ok">SUPPORTED</span> 12</div>
+    <div class="edge ok" style="left:1060px;top:92px;width:400px" data-in="1.6"></div>
+    <div class="elabel ok" style="left:1110px;top:102px" data-in="1.6">publish <span class="pill ok">SUPPORTED</span> 7</div>
+    <!-- the failure edge, drawn as a long bar under the row -->
+    <div class="edge bad" style="left:210px;top:230px;width:1390px" data-in="2.6"></div>
+    <div class="dot bad" style="left:204px;top:224px" data-in="2.6"></div>
+    <div class="dot bad" style="left:1594px;top:224px" data-in="2.6"></div>
+    <div class="elabel bad" style="left:640px;top:246px" data-in="2.6">publish from untested <span class="pill bad">FAILS</span> 5 of 5</div>
+    <!-- contradicted: PUBLISHED -> ARCHIVED -->
+    <div class="edge v un" style="left:1598px;top:300px;height:120px" data-in="3.6"></div>
+    <div class="elabel" style="left:1180px;top:340px" data-in="3.6">archive <span class="pill warn">CONTRADICTED</span> OK 2 · ERR 1</div>
+    <div class="node card" style="left:1460px;top:420px" data-in="3.6"><div class="t">ARCHIVED</div><div class="s">observed 4×</div></div>
+    <!-- unknown: nothing observed -->
+    <div class="edge v un" style="left:208px;top:300px;height:120px" data-in="4.4"></div>
+    <div class="elabel" style="left:236px;top:340px" data-in="4.4">edit <span class="pill soft">UNKNOWN</span> never observed here</div>
+    <div class="node ghost" style="left:60px;top:420px" data-in="4.4"><div class="t">?</div><div class="s">no evidence</div></div>
+  </div>
+  <div class="cap" data-in="5.6"><b>Unknown is not valid. Unknown is not invalid.</b> Every edge links to the calls that produced it.</div>
+</section>
+
+<!-- 4: offers -->
+<section id="s4">
+  <h1 data-in="0">Ask about a resource. Get offers for <em>its current state</em>.</h1>
+  <div class="card" style="padding:10px 0;margin-top:30px" data-in="0.6">
+    <div class="offer" style="padding-top:26px"><div class="n soft">release:demo-7</div><div class="d">observed state</div><div class="mono">status=DRAFT, tests_passed=true</div></div>
+    <div class="offer" data-in="1.4"><div class="n">run_tests</div><div><span class="pill ok">CANDIDATE</span></div><div class="d">supported · 12 observations · no state change</div></div>
+    <div class="offer" data-in="2.4"><div class="n">publish_release</div><div><span class="pill warn">UNCERTAIN</span> <span class="pill acc">APPROVAL</span></div><div class="d">needs status=DRAFT, tests_passed=true · OK 2× · ERR 1× · hidden condition suspected</div></div>
+    <div class="offer" data-in="3.4"><div class="n">edit_release</div><div><span class="pill ok">CANDIDATE</span></div><div class="d">predicted: tests_passed becomes false</div></div>
+    <div class="offer" data-in="4.4"><div class="n">archive_release</div><div><span class="pill bad">NOT SUPPORTED</span></div><div class="d">failed 4 of 4 times from this state</div></div>
+    <div class="offer" data-in="5.2"><div class="n">restore_release</div><div><span class="pill soft">UNKNOWN</span></div><div class="d">never observed from this state</div></div>
+  </div>
+  <div class="cap" data-in="6.4">Tested applicability, never a guarantee. <b>explain</b> shows the exact calls and counterexamples behind each line.</div>
+</section>
+
+<!-- 5: policies -->
+<section id="s5">
+  <h1 data-in="0">Three policies. <em>Observe</em>, <em>warn</em>, or <em>block</em>.</h1>
+  <div class="term" style="margin-top:34px" data-in="0.8">
+    <div class="p">$ mcpgraphy wrap --adapter filesystem.json --policy block -- npx @modelcontextprotocol/server-filesystem ~/work</div>
+    <div data-in="1.8"><span class="p">agent →</span> edit_file("missing.md", …)</div>
+    <div class="e" data-in="2.4">   BLOCKED  edit_file was observed to fail from state [exists=false] in 2 prior calls</div>
+    <div data-in="3.6"><span class="p">agent →</span> move_file("final.md" → "done.md")</div>
+    <div class="y" data-in="4.2">   BLOCKED  move_file is destructive and is not pre-approved (--approve move_file)</div>
+    <div data-in="5.4"><span class="p">agent →</span> edit_file("notes.md", …)</div>
+    <div class="g" data-in="6.0">   ok       ```diff  -todo: ship  +todo: ship mcpgraphy</div>
+    <div class="d" data-in="7.0">   audit: 3 blocked · 1 executed · graph updated</div>
+  </div>
+  <div class="cap" data-in="8.2">The calls the evidence says will fail, and anything destructive, stop <b>before the server sees them</b>. Everything is audited.</div>
+</section>
+
+<!-- 6: numbers -->
+<section id="s6">
+  <h1 data-in="0">We measured it. Including the part that is <em>not</em> flattering.</h1>
+  <p class="lead" data-in="0.5">200 stateful tasks, two simulated servers with hidden state, deterministic agent, paired 95% bootstrap intervals.</p>
+  <div class="stats">
+    <div class="stat card" data-in="1.0"><div class="k">invalid calls per task · raw MCP</div><div class="v bad" id="n0">0.00</div><div class="bar bad"><i style="--v:100%"></i></div><div class="l">trial and error</div></div>
+    <div class="stat card" data-in="1.8"><div class="k">with mcpgraphy</div><div class="v acc" id="n1">0.00</div><div class="bar"><i id="b1" style="--v:0%"></i></div><div class="l">−1.52 [−1.74, −1.32] vs raw</div></div>
+    <div class="stat card" data-in="2.6"><div class="k">just logging the agent's calls</div><div class="v" id="n2">0.00</div><div class="bar"><i id="b2" style="--v:0%"></i></div><div class="l">97% of the benefit, zero probes</div></div>
+  </div>
+  <div class="cap" data-in="5.0">That last number is why the product is a <b>proxy</b>, not a fuzzer. We say so in the README.</div>
+</section>
+
+<!-- 7: install -->
+<section id="s7" class="title">
+  <div class="wordmark"><i></i>mcpgraphy</div>
+  <div class="term" style="margin-top:50px;width:1400px" data-in="0.6">
+    <div><span class="p">$</span> pip install mcpgraphy</div>
+    <div data-in="1.6"><span class="p">$</span> mcpgraphy wrap --adapter adapter.json --policy warn -- &lt;your mcp server&gt;</div>
+  </div>
+  <div class="tag" data-in="3.0" style="font-size:52px">Map first. <em class="acc" style="font-style:normal">Act second.</em></div>
+  <div class="sub" data-in="3.6">github.com/hemanth1999k/mcpgraphy · MIT</div>
+</section>
+</div>
+
+<script>
+const SCENES=[[0,6,"1 / 8"],[6,18,"2 / 8 · the problem"],[18,28,"3 / 8 · how it works"],[28,41,"4 / 8 · the graph"],[41,52,"5 / 8 · offers"],[52,63,"6 / 8 · policies"],[63,72,"7 / 8 · measured"],[72,76,"8 / 8"]];
+const TOTAL=76;
+const ease=t=>t<0?0:t>1?1:1-Math.pow(1-t,3);
+function tween(id,from,to,p,dec){const el=document.getElementById(id);if(el)el.textContent=(from+(to-from)*ease(p)).toFixed(dec);}
+window.__seek=function(t){
+  document.getElementById('tl').style.setProperty('--w',(1920*Math.min(t/TOTAL,1))+'px');
+  SCENES.forEach(([a,b,label],i)=>{
+    const s=document.getElementById('s'+i); const on=t>=a&&t<b; s.classList.toggle('on',on);
+    if(on){document.getElementById('chap').textContent=label;
+      s.querySelectorAll('[data-in]').forEach(el=>{el.classList.toggle('in',(t-a)>=parseFloat(el.dataset.in));});}
+  });
+  if(t>=63&&t<72){const r=t-63;
+    tween('n0',0,2.19,(r-1.0)/1.2,2);
+    tween('n1',0,0.67,(r-1.8)/1.2,2);
+    tween('n2',0,0.71,(r-2.6)/1.2,2);
+    document.getElementById('b1').style.setProperty('--v',(31*ease((r-1.8)/1.2))+'%');
+    document.getElementById('b2').style.setProperty('--v',(32*ease((r-2.6)/1.2))+'%');
+  }
+};
+// stable rendering: disable CSS transitions while seeking frame by frame
+const style=document.createElement('style');style.textContent='[data-in]{transition:none!important}';
+window.__ready=document.fonts.ready.then(()=>{document.head.appendChild(style);window.__seek(0);return true;});
+</script>
+</body></html>

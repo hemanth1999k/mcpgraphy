@@ -1,0 +1,11 @@
+{
+  "server_id": "filesystem",
+  "resource_class": "file",
+  "observation_tool": "get_file_info",
+  "id_param": "path",
+  "id_param_aliases": ["source"],
+  "observation_format": "kv_text",
+  "features": ["isFile", "isDirectory"],
+  "effect_classes": {"edit_file": "MUTATING", "create_directory": "MUTATING"},
+  "approval_required": ["write_file", "move_file"]
+}

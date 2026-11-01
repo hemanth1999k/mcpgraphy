@@ -1,0 +1,13 @@
+{
+  "name": "stateful-v1",
+  "servers": ["release_sim", "ticket_sim"],
+  "categories": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+  "seeds_per_category": 10,
+  "seed_base": 1000,
+  "max_steps": 6,
+  "learner": {"seed": 0, "fixtures": 20, "budget": 150},
+  "retest_budget": 30,
+  "held_out_seed": 2000,
+  "baselines": ["B0", "B2", "B3", "B4", "B5"],
+  "ablations": ["unknown_as_valid", "no_guards", "no_counterexamples", "no_arg_classes"]
+}
