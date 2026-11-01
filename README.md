@@ -21,11 +21,9 @@ Point your MCP host at that command instead of the server. Same tools, same argu
 
 <p align="center"><img src="https://raw.githubusercontent.com/hemanth1999k/mcpgraphy/main/docs/demo.gif" alt="mcpgraphy in front of the official filesystem MCP server: a naive agent edits and moves files that are not there, mcpgraphy learns from those calls, then blocks the same mistakes before the server sees them" width="1000"></p>
 
-
-
 https://github.com/user-attachments/assets/3caac91a-2829-4539-b04e-5bd1d9b30ee3
 
-
+<p align="center"><em>MCPgraphy in 1:48, narrated: what tool calling gets wrong, how the proxy maps your tools from the calls your agent already makes, and what changed when a real GPT agent ran behind it. Every number in it comes from the benchmark below.</em></p>
 
 ## The problem
 
