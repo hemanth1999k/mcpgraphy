@@ -48,8 +48,8 @@ PRICES: dict[str, tuple[float, float, float]] = {
     "gpt-5.5": (5.00, 0.50, 30.00),
     "gpt-5-mini": (0.25, 0.025, 2.00),
 }
-ARMS = ("raw", "mcpgraphy", "gate", "inline", "route", "reach")
-GUIDED = {"mcpgraphy", "gate", "inline", "route", "reach"}
+ARMS = ("raw", "mcpgraphy", "gate", "inline", "route")
+GUIDED = {"mcpgraphy", "gate", "inline", "route"}
 MAX_ROUNDS = 16  # model turns per task, a hard stop independent of the step budget
 
 SYSTEM_RAW = (
@@ -79,31 +79,9 @@ SYSTEM_ROUTE = SYSTEM_GATE + (
     "which are not supported, and routes to other states. Plan from those lines, act, and do "
     "not re-read the resource unless an action's result lacks them."
 )
-SYSTEM_REACH = SYSTEM_ROUTE + (
-    " When the routes show a path to your goal, call mcpgraphy_reach(resource_ref, "
-    "'feature=value') once: it executes that observed route step by step through the same "
-    "gate, stops at the first failure, and returns the resulting state."
-)
-REACH_TOOL = {
-    "type": "function",
-    "function": {
-        "name": "mcpgraphy_reach",
-        "description": "Execute the shortest observed route from the resource's current state "
-        "to a state where feature=value holds. Stops at the first failure.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "resource_ref": {"type": "string", "description": "<resource_class>:<id>"},
-                "goal": {"type": "string", "description": "feature=value, e.g. status=PUBLISHED"},
-            },
-            "required": ["resource_ref", "goal"],
-        },
-    },
-}
 SYSTEMS = {
     "raw": SYSTEM_RAW,
     "route": SYSTEM_ROUTE,
-    "reach": SYSTEM_REACH,
     "mcpgraphy": SYSTEM_MCPGRAPHY,
     "gate": SYSTEM_GATE,
     "inline": SYSTEM_INLINE,
@@ -286,8 +264,6 @@ async def run_llm_episode(
         live_names = {t["function"]["name"] for t in tools}
         if arm == "mcpgraphy":
             tools.append(AFFORDANCES_TOOL)
-        if arm == "reach":
-            tools.append(REACH_TOOL)
 
         async def goal_met() -> bool:
             rec = await client.call(spec_live.observation_tool, {spec_live.id_param: local_id})
@@ -437,24 +413,6 @@ async def _handle_call(
                 "offers": _compact_offers(offers),
             }
         )
-    if name == "mcpgraphy_reach":
-        ep.guidance_calls += 1
-        if store is None or not model_version:
-            return "Error: nothing learned yet."
-        return await _reach(
-            args,
-            ep,
-            sandbox,
-            manifest,
-            client,
-            spec_live,
-            spec_v1,
-            guidance,
-            store,
-            model_version,
-            local_id,
-            true_outcome,
-        )
     if name not in live_names:
         return f"Error: unknown tool {name!r}."
     policy = spec_live.tool(name)
@@ -504,82 +462,10 @@ async def _handle_call(
     if not valid:
         ep.invalid_calls += 1
     text = _render(rec)
-    if ep.arm in ("route", "reach") and store and model_version:
+    if ep.arm in ("route",) and store and model_version:
         rid = str(args.get(spec_v1.id_param, local_id))
         text += "\n" + await _hint(client, store, spec_v1, model_version, rid, True)
     return text
-
-
-async def _reach(
-    args,
-    ep,
-    sandbox,
-    manifest,
-    client,
-    spec_live,
-    spec_v1,
-    guidance,
-    store,
-    model_version,
-    local_id,
-    true_outcome,
-) -> str:
-    """Execute the shortest observed route to a goal feature, step by step, through the gate."""
-    ref = str(args.get("resource_ref", local_id))
-    rid = ref.split(":", 1)[1] if ":" in ref else ref
-    goal = str(args.get("goal", ""))
-    if "=" not in goal:
-        return "Error: goal must be feature=value."
-    gk, gv = (x.strip() for x in goal.split("=", 1))
-    want: Any = {"true": True, "false": False}.get(gv.lower(), gv)
-    resolved = await resolve_state(client, spec_v1, rid)
-    if resolved.state.features.get(gk) == want:
-        return "Already there.\n" + await _hint(client, store, spec_v1, model_version, rid, True)
-    routes = routes_from(store, spec_v1, model_version, resolved.state.state_id)
-    route = next(
-        (
-            r
-            for r in routes
-            if r.target.get(gk) == want
-            and not any("<" in str(x) for _, tpl in r.steps for x in tpl.values())
-        ),
-        None,
-    )
-    if route is None:
-        return f"No observed route from the current state to {goal}.\n" + await _hint(
-            client, store, spec_v1, model_version, rid, True
-        )
-    done = []
-    for tool, tpl in route.steps:
-        call_args = {**tpl, spec_v1.id_param: rid}
-        valid = true_outcome(sandbox, tool, call_args) is OutcomeKind.OK
-        if guidance is not None:
-            focal = await client.call(spec_live.observation_tool, {spec_live.id_param: rid})
-            feats = (
-                features_of_raw(spec_v1.resource_class, focal.raw)
-                if focal.raw
-                else {"exists": False}
-            )
-            label = (await guidance.rank(client, manifest, feats, [Action(tool, call_args)]))[0]
-            if label == "NOT_SUPPORTED":
-                ep.blocked_calls += 1
-                ep.suppressed_valid += int(valid)
-                break
-        rec = await client.call(tool, call_args)
-        ep.steps.append(
-            {"tool": tool, "args": call_args, "valid": valid, "outcome": str(rec.outcome.kind)}
-        )
-        if not valid:
-            ep.invalid_calls += 1
-        done.append(f"{tool} -> {rec.outcome.kind}")
-        if not rec.outcome.kind.is_ok:
-            break
-    return (
-        "Executed: "
-        + "; ".join(done)
-        + "\n"
-        + await _hint(client, store, spec_v1, model_version, rid, True)
-    )
 
 
 async def _hint(client, store, spec, model_version, rid, with_routes: bool) -> str:
