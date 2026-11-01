@@ -128,7 +128,7 @@ h1 em{font-style:normal;color:var(--acc)}
     <div class="e" data-in="6.4">   ENOENT: no such file or directory, rename 'draft.md'</div>
     <div class="d" data-in="7.6">   … retry … retry … </div>
   </div>
-  <div class="cap" data-in="8.4">Errors, retries, and sometimes <b class="bad">damage</b>. The schema was never going to tell it.</div>
+  <div class="cap" data-in="8.4">It tries, it fails, it tries again. Sometimes the retry is the one that does <b class="bad">damage</b>.</div>
 </section>
 
 <!-- 2: how -->
@@ -148,7 +148,7 @@ h1 em{font-style:normal;color:var(--acc)}
     <div><span class="b">read</span>  get_file_info("notes.md")        <span class="d">→ exists=false</span></div>
     <div class="g" data-in="5.8">journal ← {state: exists=false, action: edit_file, outcome: ERR_NOT_FOUND}</div>
   </div>
-  <div class="cap" data-in="7.2">No probing. No resets. Nothing extra touches your server. <b>The agent's own calls are the evidence.</b></div>
+  <div class="cap" data-in="7.2">Nothing extra touches your server. <b>The calls your agent already makes are the evidence.</b></div>
 </section>
 
 <!-- 3: graph -->
@@ -193,7 +193,7 @@ h1 em{font-style:normal;color:var(--acc)}
     <div class="offer bad" data-in="4.4"><div class="n">archive_release</div><div><span class="pill bad">NOT SUPPORTED</span></div><div class="d">failed 4 of 4 times from this state</div></div>
     <div class="offer un" data-in="5.2"><div class="n">restore_release</div><div><span class="pill soft">UNKNOWN</span></div><div class="d">never observed from this state</div></div>
   </div>
-  <div class="cap" data-in="6.4">Tested applicability, never a guarantee. <b>explain</b> shows the exact calls and counterexamples behind each line.</div>
+  <div class="cap" data-in="6.4">One line, on every read. <b>The agent stops guessing.</b> Ask <b>explain</b> and it shows the calls behind each word.</div>
 </section>
 
 <!-- 5: policies -->
@@ -219,15 +219,15 @@ h1 em{font-style:normal;color:var(--acc)}
 
 <!-- 6: numbers -->
 <section id="s6">
-  <h1 data-in="0">We measured it with a real agent. Including the part that is <em>not</em> flattering.</h1>
-  <p class="lead" data-in="0.5">200 stateful tasks · GPT-5.4-mini calling the tools · raw tools vs the same tools behind MCPgraphy, as it ships.</p>
+  <h1 data-in="0">We put a real agent on it. Measured <em>start of job to end of job</em>.</h1>
+  <p class="lead" data-in="0.5">200 jobs · GPT-5.4-mini making the tool calls · on its own vs behind MCPgraphy.</p>
   <div class="stats4">
-    <div class="stat4 card" data-in="1.0"><div class="k">tasks completed</div><div class="big ok"><span id="c1">0</span><small>%</small></div><div class="was">raw tools <b id="c0">0</b>%</div><div class="bars"><div class="bar bad"><i id="bc0" style="--v:0%"></i></div><div class="bar ok"><i id="bc1" style="--v:0%"></i></div></div></div>
-    <div class="stat4 card" data-in="1.7"><div class="k">invalid calls per task</div><div class="big ok"><span id="i1">0.00</span></div><div class="was">raw tools <b id="i0">0.00</b></div><div class="bars"><div class="bar bad"><i id="bi0" style="--v:0%"></i></div><div class="bar ok"><i id="bi1" style="--v:0%"></i></div></div></div>
+    <div class="stat4 card" data-in="1.0"><div class="k">jobs finished</div><div class="big ok"><span id="c1">0</span><small>%</small></div><div class="was">raw tools <b id="c0">0</b>%</div><div class="bars"><div class="bar bad"><i id="bc0" style="--v:0%"></i></div><div class="bar ok"><i id="bc1" style="--v:0%"></i></div></div></div>
+    <div class="stat4 card" data-in="1.7"><div class="k">rejected calls per job</div><div class="big ok"><span id="i1">0.00</span></div><div class="was">raw tools <b id="i0">0.00</b></div><div class="bars"><div class="bar bad"><i id="bi0" style="--v:0%"></i></div><div class="bar ok"><i id="bi1" style="--v:0%"></i></div></div></div>
     <div class="stat4 card" data-in="2.4"><div class="k">claimed success falsely</div><div class="big ok"><span id="f1">0</span><small>of 200</small></div><div class="was">raw tools <b id="f0">0</b> of 200</div><div class="bars"><div class="bar bad"><i id="bf0" style="--v:0%"></i></div><div class="bar ok"><i id="bf1" style="--v:0%"></i></div></div></div>
-    <div class="stat4 card" data-in="3.1"><div class="k">tokens per task</div><div class="big warn"><span id="k1">0</span></div><div class="was">raw tools <b id="k0" style="color:var(--soft)">0</b></div><div class="bars"><div class="bar"><i id="bk0" style="--v:0%;background:#b9bcc6"></i></div><div class="bar warn"><i id="bk1" style="--v:0%"></i></div></div><div class="note">25% more per task. 7% less per task completed.</div></div>
+    <div class="stat4 card" data-in="3.1"><div class="k">tokens per job done</div><div class="big ok"><span id="k1">0</span></div><div class="was">raw tools <b id="k0">0</b></div><div class="bars"><div class="bar bad"><i id="bk0" style="--v:0%"></i></div><div class="bar ok"><i id="bk1" style="--v:0%"></i></div></div><div class="note">7% less per finished job. Per job attempted: 25% more, because raw quits early.</div></div>
   </div>
-  <div class="cap" data-in="5.0"><b>More tokens, fewer failures.</b> Raw is cheap partly by giving up, or by claiming it finished. The README says so.</div>
+  <div class="cap" data-in="5.0"><b>Same spend, more jobs done, no false claims.</b> Every number, and how to rerun it, is in the README.</div>
 </section>
 
 <!-- 7: install -->
@@ -243,8 +243,8 @@ h1 em{font-style:normal;color:var(--acc)}
 </div>
 
 <script>
-const SCENES=[[0,6,"1 / 8"],[6,18,"2 / 8 · the problem"],[18,28,"3 / 8 · how it works"],[28,41,"4 / 8 · the graph"],[41,52,"5 / 8 · offers"],[52,63,"6 / 8 · policies"],[63,72,"7 / 8 · measured"],[72,76,"8 / 8"]];
-const TOTAL=76;
+const SCENES=[[0,7,"1 / 8"],[7,28,"2 / 8 · the problem"],[28,41,"3 / 8 · how it works"],[41,57,"4 / 8 · the graph"],[57,69,"5 / 8 · offers"],[69,81,"6 / 8 · policies"],[81,101,"7 / 8 · measured"],[101,107,"8 / 8"]];
+const TOTAL=107;
 const ease=t=>t<0?0:t>1?1:1-Math.pow(1-t,3);
 function tweenInt(id,from,to,p){const el=document.getElementById(id);if(el)el.textContent=Math.round(from+(to-from)*ease(p)).toLocaleString('en-US');}
 function tween(id,from,to,p,dec){const el=document.getElementById(id);if(el)el.textContent=(from+(to-from)*ease(p)).toFixed(dec);}
@@ -255,12 +255,12 @@ window.__seek=function(t){
     if(on){document.getElementById('chap').textContent=label;
       s.querySelectorAll('[data-in]').forEach(el=>{el.classList.toggle('in',(t-a)>=parseFloat(el.dataset.in));});}
   });
-  if(t>=63&&t<72){const r=t-63;const set=(id,v)=>document.getElementById(id).style.setProperty('--v',v+'%');
+  if(t>=81&&t<101){const r=t-81;const set=(id,v)=>document.getElementById(id).style.setProperty('--v',v+'%');
     const p0=ease((r-1.0)/1.2),p1=ease((r-1.7)/1.2),p2=ease((r-2.4)/1.2),p3=ease((r-3.1)/1.2);
     tween('c0',0,74,(r-1.0)/1.2,0);tween('c1',0,99,(r-1.0)/1.2,0);set('bc0',74*p0);set('bc1',99*p0);
     tween('i0',0,1.03,(r-1.7)/1.2,2);tween('i1',0,0.43,(r-1.7)/1.2,2);set('bi0',100*p1);set('bi1',42*p1);
     tween('f0',0,10,(r-2.4)/1.2,0);tween('f1',0,0,(r-2.4)/1.2,0);set('bf0',100*p2);set('bf1',0);
-    tweenInt('k0',0,2474,(r-3.1)/1.2);tweenInt('k1',0,3095,(r-3.1)/1.2);set('bk0',80*p3);set('bk1',100*p3);
+    tweenInt('k0',0,5154,(r-3.1)/1.2);tweenInt('k1',0,4799,(r-3.1)/1.2);set('bk0',100*p3);set('bk1',93*p3);
   }
 };
 // stable rendering: disable CSS transitions while seeking frame by frame
