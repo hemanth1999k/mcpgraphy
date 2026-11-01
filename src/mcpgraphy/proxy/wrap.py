@@ -36,6 +36,7 @@ from mcpgraphy.offers.selector import (
     classify_rows,
     inline_hint,
     resolve_state,
+    routes_from,
     select_offers,
 )
 from mcpgraphy.proxy.adapter import AdapterSpec, action_class_for_call, id_value
@@ -52,7 +53,7 @@ class ProxyPolicy:
     mode: Literal["observe", "warn", "block"] = "warn"
     approved_tools: frozenset[str] = field(default_factory=frozenset)
     allow_uncertain: bool = True
-    hints: bool = True  # append a one-line affordance summary to every read-back
+    hints: bool = True  # one line from the graph on every read-back, action result and refusal
 
 
 @dataclass
@@ -236,13 +237,13 @@ class Proxy:
         if self.policy.mode == "warn" and gate.note:
             self.warned += 1
             result = _append_text(result, gate.note)
-        if (
-            self.policy.hints
-            and self.model_version
-            and name == self.spec.observation_tool
-            and rid is not None
-        ):
-            result = _append_text(result, self._hint(name, args, rid, result))
+        if self.policy.hints and self.model_version and rid is not None:
+            if name == self.spec.observation_tool:
+                result = _append_text(result, self._hint(name, args, rid, result))
+            elif after is not None:
+                # the action's result carries the new state and what is possible next, so the
+                # agent does not need to spend a turn reading the resource again
+                result = _append_text(result, self._hint_for(after, rid))
         return result
 
     def _hint(self, name: str, args: dict[str, Any], rid: Any, result: Any) -> str:
@@ -260,7 +261,8 @@ class Proxy:
         resolved = ResolvedState(ref, snap, state, exists=snap.outcome.kind.is_ok)
         with GraphStore(self.db_path) as store:
             offers = select_offers(store, self.spec, self.model_version, resolved)
-        return inline_hint(offers, self.spec, feats)
+            routes = routes_from(store, self.spec, self.model_version, state.state_id)
+        return inline_hint(offers, self.spec, feats, routes=routes, compact=True)
 
     def _gate(self, name: str, args: dict[str, Any], before: Snapshot | None) -> Gate:
         assert self.spec is not None

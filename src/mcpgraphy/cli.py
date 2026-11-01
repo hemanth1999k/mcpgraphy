@@ -110,8 +110,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bllm.add_argument("--suite", default="stateful-v1")
     bllm.add_argument("--model", default="gpt-5.4-mini")
-    bllm.add_argument("--arms", default="raw,gate,inline,mcpgraphy")
+    bllm.add_argument("--arms", default="raw,route")
     bllm.add_argument("--limit", type=int, help="only the first N scenarios")
+    bllm.add_argument(
+        "--sample", type=int, help="N scenarios spread across every server and category"
+    )
     bllm.add_argument("--concurrency", type=int, default=6)
     bllm.add_argument("--out", default="experiments/llm")
 
@@ -459,7 +462,13 @@ def cmd_benchmark_llm(args: argparse.Namespace) -> int:
     from mcpgraphy.evaluation.llm_agent import run_llm_suite
 
     run_dir = run_llm_suite(
-        args.suite, args.model, args.out, args.arms.split(","), args.limit, args.concurrency
+        args.suite,
+        args.model,
+        args.out,
+        args.arms.split(","),
+        args.limit,
+        args.concurrency,
+        sample=args.sample,
     )
     print((run_dir / "report.md").read_text())
     print(f"results: {run_dir / 'results.jsonl'}")

@@ -66,37 +66,51 @@ Model level: the learned graph's edges marked supported were re-checked on five 
 
 ## With a real LLM agent
 
-`OPENAI_API_KEY=... mcpgraphy benchmark llm --model gpt-5.4-mini` runs the same 200 scenarios with a real model calling the tools. Four arms:
+`OPENAI_API_KEY=... mcpgraphy benchmark llm --model gpt-5.4-mini` runs the same 200 scenarios with a real model calling the tools. The default arms:
 
 | arm | what the agent sees |
 |---|---|
 | `raw` | the server's tools |
-| `gate` | the same tools behind the proxy's block-mode gate (passive-trace graph, every tool pre-approved so the gate acts on evidence only); a refusal carries the inline hint |
-| `inline` | `gate`, plus the inline hint appended to every read of the resource; the proxy's default |
-| `mcpgraphy` | `gate`, plus the `mcpgraphy_affordances` tool |
+| `route` | the same tools behind the proxy as it ships: block-mode gate on the passive-trace graph (every tool pre-approved, so the gate acts on evidence only), and one line from the graph on every read, every action result and every refusal: the state, what is ok from it and what each action changes, what is not supported, and the shortest observed route to each reachable state |
 
-The oracle judges every mutating call before it executes, so "invalid call" is ground truth. The model ends a task by replying `GOAL_REACHED` or `GOAL_UNREACHABLE`; a `GOAL_REACHED` that the read-back contradicts is counted as a false success. Tokens and dollars come from the API's usage field at list prices. The model samples, so numbers move a little between runs; two full runs of this configuration agreed within two points on every column.
+The oracle judges every mutating call before it executes, so "invalid call" is ground truth. The model ends a task with `GOAL_REACHED` or `GOAL_UNREACHABLE`; a `GOAL_REACHED` that the read-back contradicts is a false success. Every model turn is tagged by what it produced (an action, a rejected call, a refused call, a read, the final answer), so tokens can be attributed. Tokens and dollars come from the API's usage field at list prices. The model samples, so numbers move a little between runs; repeated runs of the same configuration agreed within two points on every column.
 
-### Results, GPT-5.4-mini, 2026-11-01
+### Results, GPT-5.4-mini, 2026-11-01, 200 scenarios
 
-| arm | completed (achievable) | correct abstain (unreachable) | false success | invalid calls / task | blocked / task | valid calls blocked | tokens / task | cost / task |
-|---|---|---|---|---|---|---|---|---|
-| raw | 0.78 | 0.86 | 10 | 1.09 | 0 | 0 | 2,614 | $0.0023 |
-| gate | 0.95 | 0.90 | 7 | 0.51 | 0.62 | 18 | 3,206 | $0.0028 |
-| inline | 0.97 | 0.99 | 1 | 0.51 | 0.12 | 0 | 4,513 | $0.0038 |
-| mcpgraphy tool | 0.94 | 0.93 | 6 | 0.36 | 0.17 | 1 | 6,654 | $0.0053 |
+| arm | completed (achievable) | correct abstain (unreachable) | false success | invalid calls / task | blocked / task | valid calls blocked | model turns / task | tokens / task | tokens / completed task | cost / task |
+|---|---|---|---|---|---|---|---|---|---|---|
+| raw | 0.74 | 0.86 | 10 | 1.03 | 0 | 0 | 4.46 | 2,474 | 5,154 | $0.0022 |
+| route (default) | 0.99 | 1.00 | 0 | 0.43 | 0.15 | 0 | 4.22 | 3,095 | 4,799 | $0.0026 |
 
-Paired against raw (95% bootstrap CI, n = 200): invalid calls -0.59 [-0.72, -0.47] for `inline`, -0.74 [-0.86, -0.62] for the tool arm; tokens +1,899 [+1,627, +2,169] for `inline`, +4,040 for the tool arm.
+Paired, route minus raw (95% bootstrap CI, n = 200): invalid calls -0.60 [-0.71, -0.48]; tokens +621 [+482, +771].
+
+Tokens per task by what the model turn produced:
+
+| arm | productive action | rejected call | refused call | read | final answer |
+|---|---|---|---|---|---|
+| raw | 563 | 573 | 0 | 713 | 625 |
+| route | 1,147 | 314 | 104 | 658 | 872 |
 
 How to read it:
 
-- **mcpgraphy costs tokens and buys outcomes.** Every guided arm spends more tokens than raw, 1.2x to 2.5x. In exchange the agent finishes 95 to 97% of achievable tasks instead of 78%, halves its invalid calls, and almost never claims success it did not earn.
-- **Raw is cheap partly because it gives up or lies.** On the release server's unreachable category, the raw agent archived the release in all ten tasks, a valid but destructive call, then reported the goal reached. Every guided arm said unreachable.
-- **A refusal must say what else is possible.** An earlier run of `gate` whose refusal said only "observed to fail" completed 47% of tasks and suppressed 18 valid calls: the agent gave up. Carrying the hint on the refusal took completion to 95% with the same token cost. The 18 valid calls `gate` still blocks all come from the drift categories, where the graph was learned on `v1` and the server is `v2`; `inline` avoids them because the agent reads first and never attempts them.
-- **The tool arm is the most precise and the most expensive.** It has the lowest invalid-call count and costs 2.5x raw, because asking for affordances is an extra model turn with a payload. The inline hint delivers most of the same information inside the read the agent was already making.
-- **Hidden state is still where everyone loses.** Categories 4 and 8 cost every arm one to two invalid calls per task; the graph says uncertain, which is correct and not enough.
+- **A quarter of raw's budget is waste.** 573 of 2,474 tokens go to turns that end in a call the server rejects. The graph removes most of that; what remains is the hidden-state categories, where nothing short of the oracle knows.
+- **The proxy spends more on doing the task, not on failing it.** Productive action turns cost twice as much behind the proxy because the agent completes 129 tasks instead of 96, and each turn carries a longer context: about 180 more prompt tokens per request, mostly the accumulated graph lines.
+- **Per task completed, the proxy is cheaper, and it takes fewer turns.** 4,799 tokens against 5,154, 4.2 turns against 4.5. Per task it costs 25% more. Both numbers are true; which one matters depends on whether an abandoned task counts as cheap.
+- **Nothing valid was blocked, and nothing false was claimed.** Zero suppressed valid calls, zero false successes, against ten false successes for raw, one of them after archiving a release the agent had been asked to make editable.
 
-Caveats specific to this run: one model, one prompt, no retries on the model's side; the graph is frozen for the run, where the real proxy keeps learning from the calls it sees; cost is list price for GPT-5.4-mini and will differ by model; the simulators' error messages are short and informative, which helps the raw agent.
+### Configurations tried on the way
+
+Earlier runs of the same scenarios, same model. Each changed the design.
+
+| configuration | completed | false success | invalid / task | tokens / task | lesson |
+|---|---|---|---|---|---|
+| block only, refusal says only "observed to fail" | 0.47 | 8 | 0.38 | 2,362 | cheaper than raw, but the agent gives up; a refusal must carry the alternatives |
+| block, refusal carries the hint | 0.95 | 7 | 0.51 | 3,206 | most of the benefit, lowest overhead |
+| multi-line hint on reads only | 0.97 | 1 | 0.51 | 4,513 | reads cost a turn each; the hint belongs on action results too |
+| `mcpgraphy_affordances` as a separate tool | 0.94 | 6 | 0.36 | 6,654 | most precise, 2.5x tokens: a question is a whole extra turn |
+| `mcpgraphy_reach`: execute the route in one call (50-task sample) | 0.55 | 4 | 0.42 | 3,671 | worse: the passive graph often has no complete route, the agent asks, gets none, and stops |
+
+Caveats specific to these runs: one model, one prompt, no retries on the model's side; the graph is frozen for the run, where the real proxy keeps learning from the calls it sees; cost is list price for GPT-5.4-mini; tasks are at most six steps long, so raw's retry waste is bounded, and the proxy's per-turn overhead is not amortized over a long job.
 
 ## Caveats
 

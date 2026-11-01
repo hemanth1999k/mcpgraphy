@@ -36,7 +36,7 @@ from mcpgraphy.evaluation.tasks import Scenario
 from mcpgraphy.graph.store import GraphStore
 from mcpgraphy.learn.abstract import features_of_raw
 from mcpgraphy.models import EffectClass, OutcomeKind, canonical_json, content_id
-from mcpgraphy.offers.selector import inline_hint, resolve_state, select_offers
+from mcpgraphy.offers.selector import inline_hint, resolve_state, routes_from, select_offers
 from mcpgraphy.registry import get_spec
 from mcpgraphy.sandbox import make_sandbox
 
@@ -48,8 +48,8 @@ PRICES: dict[str, tuple[float, float, float]] = {
     "gpt-5.5": (5.00, 0.50, 30.00),
     "gpt-5-mini": (0.25, 0.025, 2.00),
 }
-ARMS = ("raw", "mcpgraphy", "gate", "inline")
-GUIDED = {"mcpgraphy", "gate", "inline"}
+ARMS = ("raw", "mcpgraphy", "gate", "inline", "route", "reach")
+GUIDED = {"mcpgraphy", "gate", "inline", "route", "reach"}
 MAX_ROUNDS = 16  # model turns per task, a hard stop independent of the step budget
 
 SYSTEM_RAW = (
@@ -73,8 +73,37 @@ SYSTEM_INLINE = SYSTEM_GATE + (
     " Every read of the resource ends with one line from mcpgraphy listing which actions are "
     "ok, not supported, or untested from the current state; use it to choose the next call."
 )
+SYSTEM_ROUTE = SYSTEM_GATE + (
+    " Every read of the resource, and the result of every action on it, ends with lines from "
+    "mcpgraphy: the resource's state, which actions are ok from it and what each changes, "
+    "which are not supported, and routes to other states. Plan from those lines, act, and do "
+    "not re-read the resource unless an action's result lacks them."
+)
+SYSTEM_REACH = SYSTEM_ROUTE + (
+    " When the routes show a path to your goal, call mcpgraphy_reach(resource_ref, "
+    "'feature=value') once: it executes that observed route step by step through the same "
+    "gate, stops at the first failure, and returns the resulting state."
+)
+REACH_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "mcpgraphy_reach",
+        "description": "Execute the shortest observed route from the resource's current state "
+        "to a state where feature=value holds. Stops at the first failure.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "resource_ref": {"type": "string", "description": "<resource_class>:<id>"},
+                "goal": {"type": "string", "description": "feature=value, e.g. status=PUBLISHED"},
+            },
+            "required": ["resource_ref", "goal"],
+        },
+    },
+}
 SYSTEMS = {
     "raw": SYSTEM_RAW,
+    "route": SYSTEM_ROUTE,
+    "reach": SYSTEM_REACH,
     "mcpgraphy": SYSTEM_MCPGRAPHY,
     "gate": SYSTEM_GATE,
     "inline": SYSTEM_INLINE,
@@ -131,6 +160,7 @@ class LLMEpisode:
     abstain_was_correct: bool | None = None
     error: str | None = None
     final_text: str = ""
+    turns: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self, model: str) -> dict[str, Any]:
         return {
@@ -154,7 +184,16 @@ class LLMEpisode:
             "abstain_was_correct": self.abstain_was_correct,
             "error": self.error,
             "final_text": self.final_text[:300],
+            "turns": self.turns,
+            "tokens_by_turn_kind": _tokens_by_kind(self.turns),
         }
+
+
+def _tokens_by_kind(turns: list[dict[str, Any]]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for t in turns:
+        out[t["kind"]] = out.get(t["kind"], 0) + t["prompt"] + t["completion"]
+    return out
 
 
 def _post(payload: dict[str, Any], key: str) -> dict[str, Any]:
@@ -247,6 +286,8 @@ async def run_llm_episode(
         live_names = {t["function"]["name"] for t in tools}
         if arm == "mcpgraphy":
             tools.append(AFFORDANCES_TOOL)
+        if arm == "reach":
+            tools.append(REACH_TOOL)
 
         async def goal_met() -> bool:
             rec = await client.call(spec_live.observation_tool, {spec_live.id_param: local_id})
@@ -270,7 +311,14 @@ async def run_llm_episode(
                     "parallel_tool_calls": False,
                 }
                 resp = await asyncio.to_thread(_post, payload, key)
-                ep.usage.add(resp.get("usage") or {})
+                usage = resp.get("usage") or {}
+                ep.usage.add(usage)
+                turn = {
+                    "prompt": int(usage.get("prompt_tokens", 0)),
+                    "completion": int(usage.get("completion_tokens", 0)),
+                    "kind": "final",
+                }
+                ep.turns.append(turn)
                 msg = resp["choices"][0]["message"]
                 entry: dict[str, Any] = {"role": "assistant", "content": msg.get("content")}
                 if msg.get("tool_calls"):
@@ -287,6 +335,7 @@ async def run_llm_episode(
                     if verdict == "DONE":
                         ep.result = "COMPLETED" if await goal_met() else "FALSE_DONE"
                         break
+                    turn["kind"] = "nudge"
                     nudges += 1
                     if nudges > 1:
                         break
@@ -298,12 +347,20 @@ async def run_llm_episode(
                     )
                     continue
                 stop = False
+                kinds: list[str] = []
                 for tc in msg["tool_calls"]:
                     name = tc["function"]["name"]
                     try:
                         args = json.loads(tc["function"]["arguments"] or "{}")
                     except ValueError:
                         args = None
+                    before = (
+                        len(ep.steps),
+                        ep.invalid_calls,
+                        ep.blocked_calls,
+                        ep.reads,
+                        ep.guidance_calls,
+                    )
                     content = await _handle_call(
                         name,
                         args,
@@ -322,6 +379,7 @@ async def run_llm_episode(
                         true_outcome,
                         injected,
                     )
+                    kinds.append(_turn_kind(before, ep))
                     if name == spec_live.observation_tool and not injected:
                         injected = True
                         if scenario.concurrent_op:
@@ -331,6 +389,7 @@ async def run_llm_episode(
                     messages.append({"role": "tool", "tool_call_id": tc["id"], "content": content})
                     if len(ep.steps) >= scenario.max_steps:
                         stop = True
+                turn["kind"] = _worst(kinds)
                 if stop:
                     break
             if ep.result == "EXHAUSTED" and await goal_met():
@@ -378,6 +437,24 @@ async def _handle_call(
                 "offers": _compact_offers(offers),
             }
         )
+    if name == "mcpgraphy_reach":
+        ep.guidance_calls += 1
+        if store is None or not model_version:
+            return "Error: nothing learned yet."
+        return await _reach(
+            args,
+            ep,
+            sandbox,
+            manifest,
+            client,
+            spec_live,
+            spec_v1,
+            guidance,
+            store,
+            model_version,
+            local_id,
+            true_outcome,
+        )
     if name not in live_names:
         return f"Error: unknown tool {name!r}."
     policy = spec_live.tool(name)
@@ -385,11 +462,16 @@ async def _handle_call(
         ep.reads += 1
         rec = await client.call(name, args)
         text = _render(rec)
-        if ep.arm == "inline" and name == spec_live.observation_tool and store and model_version:
+        if (
+            ep.arm in ("inline", "route")
+            and name == spec_live.observation_tool
+            and store
+            and model_version
+        ):
             rid = str(args.get(spec_live.id_param, local_id))
-            resolved = await resolve_state(client, spec_v1, rid)
-            offers = select_offers(store, spec_v1, model_version, resolved)
-            text += "\n" + inline_hint(offers, spec_v1, dict(resolved.state.features))
+            text += "\n" + await _hint(
+                client, store, spec_v1, model_version, rid, ep.arm != "inline"
+            )
         return text
     valid = true_outcome(sandbox, name, args) is OutcomeKind.OK
     if guidance is not None:
@@ -412,14 +494,104 @@ async def _handle_call(
                     f"{args.get(spec_v1.id_param, local_id)}') for alternatives."
                 )
             rid = str(args.get(spec_v1.id_param, local_id))
-            resolved = await resolve_state(client, spec_v1, rid)
-            offers = select_offers(store, spec_v1, model_version, resolved)
-            return msg + "\n" + inline_hint(offers, spec_v1, dict(resolved.state.features))
+            return (
+                msg
+                + "\n"
+                + await _hint(client, store, spec_v1, model_version, rid, ep.arm == "route")
+            )
     rec = await client.call(name, args)
     ep.steps.append({"tool": name, "args": args, "valid": valid, "outcome": str(rec.outcome.kind)})
     if not valid:
         ep.invalid_calls += 1
-    return _render(rec)
+    text = _render(rec)
+    if ep.arm in ("route", "reach") and store and model_version:
+        rid = str(args.get(spec_v1.id_param, local_id))
+        text += "\n" + await _hint(client, store, spec_v1, model_version, rid, True)
+    return text
+
+
+async def _reach(
+    args,
+    ep,
+    sandbox,
+    manifest,
+    client,
+    spec_live,
+    spec_v1,
+    guidance,
+    store,
+    model_version,
+    local_id,
+    true_outcome,
+) -> str:
+    """Execute the shortest observed route to a goal feature, step by step, through the gate."""
+    ref = str(args.get("resource_ref", local_id))
+    rid = ref.split(":", 1)[1] if ":" in ref else ref
+    goal = str(args.get("goal", ""))
+    if "=" not in goal:
+        return "Error: goal must be feature=value."
+    gk, gv = (x.strip() for x in goal.split("=", 1))
+    want: Any = {"true": True, "false": False}.get(gv.lower(), gv)
+    resolved = await resolve_state(client, spec_v1, rid)
+    if resolved.state.features.get(gk) == want:
+        return "Already there.\n" + await _hint(client, store, spec_v1, model_version, rid, True)
+    routes = routes_from(store, spec_v1, model_version, resolved.state.state_id)
+    route = next(
+        (
+            r
+            for r in routes
+            if r.target.get(gk) == want
+            and not any("<" in str(x) for _, tpl in r.steps for x in tpl.values())
+        ),
+        None,
+    )
+    if route is None:
+        return f"No observed route from the current state to {goal}.\n" + await _hint(
+            client, store, spec_v1, model_version, rid, True
+        )
+    done = []
+    for tool, tpl in route.steps:
+        call_args = {**tpl, spec_v1.id_param: rid}
+        valid = true_outcome(sandbox, tool, call_args) is OutcomeKind.OK
+        if guidance is not None:
+            focal = await client.call(spec_live.observation_tool, {spec_live.id_param: rid})
+            feats = (
+                features_of_raw(spec_v1.resource_class, focal.raw)
+                if focal.raw
+                else {"exists": False}
+            )
+            label = (await guidance.rank(client, manifest, feats, [Action(tool, call_args)]))[0]
+            if label == "NOT_SUPPORTED":
+                ep.blocked_calls += 1
+                ep.suppressed_valid += int(valid)
+                break
+        rec = await client.call(tool, call_args)
+        ep.steps.append(
+            {"tool": tool, "args": call_args, "valid": valid, "outcome": str(rec.outcome.kind)}
+        )
+        if not valid:
+            ep.invalid_calls += 1
+        done.append(f"{tool} -> {rec.outcome.kind}")
+        if not rec.outcome.kind.is_ok:
+            break
+    return (
+        "Executed: "
+        + "; ".join(done)
+        + "\n"
+        + await _hint(client, store, spec_v1, model_version, rid, True)
+    )
+
+
+async def _hint(client, store, spec, model_version, rid, with_routes: bool) -> str:
+    """The resource's state looked up in the graph, with routes for the route arm."""
+    resolved = await resolve_state(client, spec, rid)
+    offers = select_offers(store, spec, model_version, resolved)
+    routes = (
+        routes_from(store, spec, model_version, resolved.state.state_id) if with_routes else None
+    )
+    return inline_hint(
+        offers, spec, dict(resolved.state.features), routes=routes, compact=with_routes
+    )
 
 
 GIVE_UP = (
@@ -444,6 +616,28 @@ def _verdict(text: str) -> str | None:
     if "GOAL_REACHED" in t or "GOAL REACHED" in t:
         return "DONE"
     return None
+
+
+_KIND_RANK = ["invalid", "blocked", "action", "guidance", "read", "other"]
+
+
+def _turn_kind(before: tuple[int, ...], ep: LLMEpisode) -> str:
+    steps, invalid, blocked, reads, guidance = before
+    if ep.invalid_calls > invalid:
+        return "invalid"
+    if ep.blocked_calls > blocked:
+        return "blocked"
+    if len(ep.steps) > steps:
+        return "action"
+    if ep.guidance_calls > guidance:
+        return "guidance"
+    if ep.reads > reads:
+        return "read"
+    return "other"
+
+
+def _worst(kinds: list[str]) -> str:
+    return min(kinds, key=_KIND_RANK.index) if kinds else "other"
 
 
 def _render(rec: Any) -> str:
@@ -484,6 +678,14 @@ def summarize_llm(rows: list[dict[str, Any]], scenarios: dict[str, dict], model:
             "cost_usd_per_task": mean([r["cost_usd"] for r in rs]),
             "cost_usd_total": sum(r["cost_usd"] for r in rs),
             "wall_s_per_task": mean([r["wall_s"] for r in rs]),
+            "tokens_by_turn_kind_per_task": {
+                k: round(sum(r["tokens_by_turn_kind"].get(k, 0) for r in rs) / len(rs))
+                for k in _KIND_RANK + ["nudge", "final"]
+            },
+            "tokens_per_completed_task": (
+                sum(r["total_tokens"] for r in rs)
+                / max(1, sum(r["result"] == "COMPLETED" for r in rs))
+            ),
         }
     raw = {r["scenario_id"]: r for r in by_arm.get("raw", [])}
     for arm, rs in sorted(by_arm.items()):
@@ -503,6 +705,11 @@ def summarize_llm(rows: list[dict[str, Any]], scenarios: dict[str, dict], model:
     return out
 
 
+def _wasted(s: dict[str, Any]) -> int:
+    k = s["tokens_by_turn_kind_per_task"]
+    return k["invalid"] + k["blocked"]
+
+
 def render_llm_report(summary: dict[str, Any]) -> str:
     a = summary["arms"]
     lines = [
@@ -510,8 +717,8 @@ def render_llm_report(summary: dict[str, Any]) -> str:
         "",
         "| arm | n | completion (achievable) | correct abstain (unachievable) | "
         "invalid calls / task | blocked / task | tool calls / task | tokens / task | "
-        "cost / task | errors |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "tokens on failed+blocked turns | tokens / completed task | cost / task | errors |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
 
     def f(x):
@@ -522,7 +729,9 @@ def render_llm_report(summary: dict[str, Any]) -> str:
             f"| {arm} | {s['n']} | {f(s['completion_achievable'])} | "
             f"{f(s['correct_abstain_unachievable'])} | {f(s['invalid_calls_per_task'])} | "
             f"{f(s['blocked_calls_per_task'])} | {f(s['tool_calls_per_task'])} | "
-            f"{s['total_tokens_per_task']:.0f} | ${s['cost_usd_per_task']:.4f} | "
+            f"{s['total_tokens_per_task']:.0f} | "
+            f"{_wasted(s)} | "
+            f"{s['tokens_per_completed_task']:.0f} | ${s['cost_usd_per_task']:.4f} | "
             f"{f(s['error_rate'])} |"
         )
     for arm, p in summary["paired_vs_raw"].items():
@@ -535,6 +744,21 @@ def render_llm_report(summary: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def sample_scenarios(scenarios: list[Scenario], n: int) -> list[Scenario]:
+    """n scenarios spread round-robin across (server, category) cells, lowest seeds first."""
+    cells: dict[tuple[str, int], list[Scenario]] = {}
+    for s in scenarios:
+        cells.setdefault((s.server_id, s.category), []).append(s)
+    out: list[Scenario] = []
+    i = 0
+    while len(out) < n and any(len(c) > i for c in cells.values()):
+        for key in sorted(cells):
+            if len(cells[key]) > i and len(out) < n:
+                out.append(cells[key][i])
+        i += 1
+    return sorted(out, key=lambda s: s.scenario_id)
+
+
 def run_llm_suite(
     suite: str,
     model: str,
@@ -543,6 +767,7 @@ def run_llm_suite(
     limit: int | None,
     concurrency: int,
     seed: int = 42,
+    sample: int | None = None,
 ) -> Path:
     from mcpgraphy.evaluation.passive import record_passive_corpus
 
@@ -557,6 +782,8 @@ def run_llm_suite(
     run_dir = Path(out_root) / run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     scenarios = build_scenarios(cfg, limit)
+    if sample:
+        scenarios = sample_scenarios(scenarios, sample)
     (run_dir / "scenarios.json").write_text(
         json.dumps([s.to_dict() for s in scenarios], indent=2, sort_keys=True)
     )
