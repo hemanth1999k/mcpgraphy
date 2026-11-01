@@ -91,7 +91,11 @@ Measured start of job to end of job, the proxy finishes 129 jobs against 96 on t
 
 Almost a quarter of raw's tokens go to turns that end in a call the server rejects. Behind MCPgraphy the agent spends its tokens on the work instead, and each turn carries about 60 more tokens for the graph line.
 
-What we tried on the way is in [docs/BENCHMARK.md](https://github.com/hemanth1999k/mcpgraphy/blob/main/docs/BENCHMARK.md): refusing calls without saying what else is possible dropped completion to 47%; a separate affordances tool was the most precise and cost 2.5x; a one-call route executor made things worse. Rerun with `OPENAI_API_KEY=... mcpgraphy benchmark llm` for about a dollar.
+Every configuration we tried, on the same axes. Up is more jobs finished, left is cheaper per job attempted:
+
+<p align="center"><img src="https://raw.githubusercontent.com/hemanth1999k/mcpgraphy/main/docs/img/configurations.png" alt="Scatter of six configurations, tokens per job attempted against jobs finished: raw tools 2,474 tokens and 74%; block only 2,362 and 47%; block with a hint on refusal 3,206 and 95%; hint on reads only 4,513 and 97%; affordances as a separate tool 6,654 and 94%; shipped configuration 3,095 and 99%" width="1000"></p>
+
+Refusing calls without saying what else is possible is the cheapest point and the worst one; a separate affordances tool is the most expensive; the shipped configuration sits at the top of the cluster. The per-category breakdown, which shows exactly where a visible-state graph cannot help (hidden state, stale snapshots, a nondeterministic flag), is in [docs/BENCHMARK.md](https://github.com/hemanth1999k/mcpgraphy/blob/main/docs/BENCHMARK.md). Rerun with `OPENAI_API_KEY=... mcpgraphy benchmark llm` for about a dollar.
 
 ## What you get
 

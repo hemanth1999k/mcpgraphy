@@ -98,7 +98,16 @@ How to read it:
 - **Measured start of job to end of job, the proxy is cheaper.** 4,799 tokens per finished job against 5,154, in 4.2 model turns against 4.5. Per job *attempted* it costs 25% more; that column counts an abandoned job as a cheap one. The number that matters for a bill is the first.
 - **Nothing valid was blocked, and nothing false was claimed.** Zero suppressed valid calls, zero false successes, against ten false successes for raw, one of them after archiving a release the agent had been asked to make editable.
 
+### By failure category
+
+<p align="center"><img src="https://raw.githubusercontent.com/hemanth1999k/mcpgraphy/main/docs/img/categories.png" alt="Rejected calls per job by category for both servers, raw tools vs behind MCPgraphy" width="1000"></p>
+
+On everything the agent can observe (normal, unreachable goal, wrong ids, prerequisite, schema change, behavior change, no reset) the proxy takes rejected calls to zero or near it. Hidden state (4), stale snapshots (8) and the seed-dependent flag (9) are where a graph of visible state cannot know the answer, and the chart shows the proxy failing there at close to raw's rate: it says uncertain, which is correct and not enough.
+
 ### Configurations tried on the way
+
+<p align="center"><img src="https://raw.githubusercontent.com/hemanth1999k/mcpgraphy/main/docs/img/configurations.png" alt="Scatter of every configuration tried: tokens per job attempted against jobs finished" width="1000"></p>
+
 
 Earlier runs of the same scenarios, same model. Each changed the design.
 
