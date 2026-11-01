@@ -220,12 +220,12 @@ h1 em{font-style:normal;color:var(--acc)}
 <!-- 6: numbers -->
 <section id="s6">
   <h1 data-in="0">We measured it with a real agent. Including the part that is <em>not</em> flattering.</h1>
-  <p class="lead" data-in="0.5">200 stateful tasks · GPT-5.4-mini calling the tools · raw tools vs the same tools behind MCPgraphy.</p>
+  <p class="lead" data-in="0.5">200 stateful tasks · GPT-5.4-mini calling the tools · raw tools vs the same tools behind MCPgraphy, as it ships.</p>
   <div class="stats4">
     <div class="stat4 card" data-in="1.0"><div class="k">tasks completed</div><div class="big ok"><span id="c1">0</span><small>%</small></div><div class="was">raw tools <b id="c0">0</b>%</div><div class="bars"><div class="bar bad"><i id="bc0" style="--v:0%"></i></div><div class="bar ok"><i id="bc1" style="--v:0%"></i></div></div></div>
     <div class="stat4 card" data-in="1.7"><div class="k">invalid calls per task</div><div class="big ok"><span id="i1">0.00</span></div><div class="was">raw tools <b id="i0">0.00</b></div><div class="bars"><div class="bar bad"><i id="bi0" style="--v:0%"></i></div><div class="bar ok"><i id="bi1" style="--v:0%"></i></div></div></div>
     <div class="stat4 card" data-in="2.4"><div class="k">claimed success falsely</div><div class="big ok"><span id="f1">0</span><small>of 200</small></div><div class="was">raw tools <b id="f0">0</b> of 200</div><div class="bars"><div class="bar bad"><i id="bf0" style="--v:0%"></i></div><div class="bar ok"><i id="bf1" style="--v:0%"></i></div></div></div>
-    <div class="stat4 card" data-in="3.1"><div class="k">tokens per task</div><div class="big warn"><span id="k1">0</span></div><div class="was">raw tools <b id="k0" style="color:var(--soft)">0</b></div><div class="bars"><div class="bar"><i id="bk0" style="--v:0%;background:#b9bcc6"></i></div><div class="bar warn"><i id="bk1" style="--v:0%"></i></div></div><div class="note">1.7× more. The hint rides on every read.</div></div>
+    <div class="stat4 card" data-in="3.1"><div class="k">tokens per task</div><div class="big warn"><span id="k1">0</span></div><div class="was">raw tools <b id="k0" style="color:var(--soft)">0</b></div><div class="bars"><div class="bar"><i id="bk0" style="--v:0%;background:#b9bcc6"></i></div><div class="bar warn"><i id="bk1" style="--v:0%"></i></div></div><div class="note">25% more per task. 7% less per task completed.</div></div>
   </div>
   <div class="cap" data-in="5.0"><b>More tokens, fewer failures.</b> Raw is cheap partly by giving up, or by claiming it finished. The README says so.</div>
 </section>
@@ -257,10 +257,10 @@ window.__seek=function(t){
   });
   if(t>=63&&t<72){const r=t-63;const set=(id,v)=>document.getElementById(id).style.setProperty('--v',v+'%');
     const p0=ease((r-1.0)/1.2),p1=ease((r-1.7)/1.2),p2=ease((r-2.4)/1.2),p3=ease((r-3.1)/1.2);
-    tween('c0',0,78,(r-1.0)/1.2,0);tween('c1',0,97,(r-1.0)/1.2,0);set('bc0',78*p0);set('bc1',97*p0);
-    tween('i0',0,1.09,(r-1.7)/1.2,2);tween('i1',0,0.51,(r-1.7)/1.2,2);set('bi0',100*p1);set('bi1',47*p1);
-    tween('f0',0,10,(r-2.4)/1.2,0);tween('f1',0,1,(r-2.4)/1.2,0);set('bf0',100*p2);set('bf1',10*p2);
-    tweenInt('k0',0,2614,(r-3.1)/1.2);tweenInt('k1',0,4513,(r-3.1)/1.2);set('bk0',58*p3);set('bk1',100*p3);
+    tween('c0',0,74,(r-1.0)/1.2,0);tween('c1',0,99,(r-1.0)/1.2,0);set('bc0',74*p0);set('bc1',99*p0);
+    tween('i0',0,1.03,(r-1.7)/1.2,2);tween('i1',0,0.43,(r-1.7)/1.2,2);set('bi0',100*p1);set('bi1',42*p1);
+    tween('f0',0,10,(r-2.4)/1.2,0);tween('f1',0,0,(r-2.4)/1.2,0);set('bf0',100*p2);set('bf1',0);
+    tweenInt('k0',0,2474,(r-3.1)/1.2);tweenInt('k1',0,3095,(r-3.1)/1.2);set('bk0',80*p3);set('bk1',100*p3);
   }
 };
 // stable rendering: disable CSS transitions while seeking frame by frame
