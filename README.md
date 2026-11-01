@@ -224,13 +224,28 @@ Design and data model: [docs/ARCHITECTURE.md](https://github.com/hemanth1999k/mc
 
 ## How is this different
 
-Schema validators and permission proxies check the *shape* of a call and *who* may make it. mcpgraphy checks whether this call has ever worked from *this state*, which is the thing that actually fails in practice, and it learns that from traffic instead of asking you to write rules.
+MCP gateways and scanners check what a call looks like and who may make it, with rules a person wrote. MCPgraphy checks whether this call has ever worked from *this state*, which is the thing that actually fails in practice, and it learns that from the agent's own traffic. Different question; they stack. Automata learners learn a server's exact state machine, which is stronger, and need a reset button, determinism and thousands of queries, which production servers do not offer. MCPgraphy runs one of them as a baseline in its own benchmark: at the same call budget the automaton did not converge and left the agent with 1.17 invalid calls per task against the passive proxy's 0.71, because an agent needs *this state, now, with evidence* rather than a complete machine.
 
-Automata learners ([AALpy](https://github.com/DES-Lab/AALpy), [LearnLib](https://learnlib.de/)) learn a server's state machine exactly, which is stronger, and need a reset button, determinism and thousands of queries to do it, which production servers do not offer. mcpgraphy runs AALpy as a baseline in its own benchmark; at the same call budget the automaton did not converge and left the agent with 1.17 invalid calls per task against the passive proxy's 0.71, because an agent needs *this state, now, with evidence* rather than a complete machine. Workflow catalogs such as [HAPI MCP](https://github.com/mcp-com-ai/hapimcp) describe what can be done from authored specifications; mcpgraphy's graph is inferred from what happened, with counterexamples and an explicit `UNKNOWN`.
+## Credits, and repos to check out
 
-## Credits
+None of the ideas here are new; the packaging for MCP is. This is the credit: the work the methods come from and the projects next door. All worth following if you work on agents and tools.
 
-The ideas are old and good: active automata learning (Angluin's L\*, AALpy, LearnLib), guard induction and counterexample-driven refinement from model learning, affordances from HCI, and the plain discipline of "if you did not observe it, say unknown." The packaging for MCP is what is new here. If your project belongs in this section, open a PR with one line.
+**Foundations**
+
+- Dana Angluin, [Learning Regular Sets from Queries and Counterexamples](https://doi.org/10.1016/0890-5401(87)90052-6), 1987. L\*, the algorithm behind every active automata learner, and the baseline this benchmark runs.
+- Frits Vaandrager, [Model Learning](https://doi.org/10.1145/2967606), CACM 2017. The survey of active automata learning: what it guarantees and what it needs (resets, determinism, a lot of queries).
+- [CAPE: Corrective Actions from Precondition Errors](https://arxiv.org/abs/2211.09935), Raman et al., 2022 to 2024. Re-prompting an agent with the precondition error it just hit, so it corrects itself. The closest idea to learning from failed preconditions, from robotics.
+- [Where LLM Agents Fail and How They Can Learn From Failures](https://arxiv.org/abs/2509.25370), 2025. A taxonomy of agent failures, tool execution errors included, and a framework for localizing them.
+
+**Repos to check out**
+
+- [AALpy](https://github.com/DES-Lab/AALpy) (DES-Lab) and [LearnLib](https://github.com/LearnLib/learnlib): active automata learning in Python and Java. AALpy is baseline B3 in `docs/BENCHMARK.md`; if you can afford resets and queries, learn the exact machine with these.
+- [HAPI MCP](https://github.com/mcp-com-ai/hapimcp): turns existing APIs and workflows into MCP tools from their specifications, authored rather than inferred. The capability graph it builds is the designed counterpart of the one MCPgraphy learns.
+- [mcp-scan](https://github.com/invariantlabs-ai/mcp-scan) (Invariant Labs): security scanner for MCP servers with a proxy mode that enforces guardrails you write on tool traffic. Put it in the same chain; it answers "is this call allowed," MCPgraphy answers "has this call ever worked from here."
+- [Bifrost](https://github.com/maximhq/bifrost) (Maxim), [Lasso MCP Gateway](https://github.com/lasso-security/mcp-gateway), [Enkrypt secure-mcp-gateway](https://github.com/enkryptai/secure-mcp-gateway): gateways that route, log and apply rules to MCP tool calls. Rules on shape and identity; MCPgraphy adds evidence on state.
+- [Model Context Protocol Python SDK](https://github.com/modelcontextprotocol/python-sdk) and the [reference servers](https://github.com/modelcontextprotocol/servers): what MCPgraphy is built on, and the filesystem server the demo wraps.
+
+If your project belongs here and is missing, open a PR with one line.
 
 ## Roadmap
 
