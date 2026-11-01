@@ -104,6 +104,16 @@ def build_parser() -> argparse.ArgumentParser:
     brep = bsub.add_parser("report", help="print the report of a run")
     brep.add_argument("--run", default="latest")
     brep.add_argument("--out", default="experiments/runs")
+    bllm = bsub.add_parser(
+        "llm",
+        help="a real LLM agent on the scenarios, raw vs behind mcpgraphy (needs OPENAI_API_KEY)",
+    )
+    bllm.add_argument("--suite", default="stateful-v1")
+    bllm.add_argument("--model", default="gpt-5.4-mini")
+    bllm.add_argument("--arms", default="raw,gate,inline,mcpgraphy")
+    bllm.add_argument("--limit", type=int, help="only the first N scenarios")
+    bllm.add_argument("--concurrency", type=int, default=6)
+    bllm.add_argument("--out", default="experiments/llm")
 
     sbx = sub.add_parser(
         "sandbox", help="run a simulated server itself over stdio (for demos/tests)"
@@ -123,6 +133,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--approve", default="", help="comma list of tools pre-approved in block mode"
     )
     wrap.add_argument("--refresh-every", type=int, default=5, help="re-learn after N calls")
+    wrap.add_argument(
+        "--no-hints",
+        action="store_true",
+        help="do not append the one-line affordance summary to read-backs",
+    )
     wrap.add_argument("--url", help="downstream Streamable HTTP URL instead of a command")
     wrap.add_argument("downstream", nargs=argparse.REMAINDER, help="-- command args... (stdio)")
     _db_args(wrap)
@@ -171,6 +186,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_benchmark_run(args)
         if args.bench_command == "report":
             return cmd_benchmark_report(args)
+        if args.bench_command == "llm":
+            return cmd_benchmark_llm(args)
         parser.parse_args(["benchmark", "--help"])
         return EXIT_USAGE
     parser.error(f"unknown command {args.command}")
@@ -397,7 +414,9 @@ def cmd_wrap(args: argparse.Namespace) -> int:
     downstream = args.url or StdioServerParameters(command=cmd[0], args=cmd[1:])
     adapter = AdapterSpec.load(args.adapter)
     policy = ProxyPolicy(
-        mode=args.policy, approved_tools=frozenset(t for t in args.approve.split(",") if t)
+        mode=args.policy,
+        approved_tools=frozenset(t for t in args.approve.split(",") if t),
+        hints=not args.no_hints,
     )
     proxy = Proxy(
         adapter,
@@ -433,6 +452,17 @@ def cmd_benchmark_run(args: argparse.Namespace) -> int:
         f"wall time: {timing['total_s']:.1f}s (models {timing['models_s']:.1f}s, "
         f"episodes {timing['episodes_s']:.1f}s)"
     )
+    return EXIT_OK
+
+
+def cmd_benchmark_llm(args: argparse.Namespace) -> int:
+    from mcpgraphy.evaluation.llm_agent import run_llm_suite
+
+    run_dir = run_llm_suite(
+        args.suite, args.model, args.out, args.arms.split(","), args.limit, args.concurrency
+    )
+    print((run_dir / "report.md").read_text())
+    print(f"results: {run_dir / 'results.jsonl'}")
     return EXIT_OK
 
 

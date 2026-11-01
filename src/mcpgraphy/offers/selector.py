@@ -20,6 +20,7 @@ from mcpgraphy.models import (
     AuthStatus,
     Availability,
     BehaviorStatus,
+    EffectClass,
     Features,
     ObservedOutcome,
     Offer,
@@ -339,3 +340,44 @@ __all__ = [
     "select_offers",
     "template_action_classes",
 ]
+
+
+def inline_hint(offers: list[Offer], spec: ServerSpec, state: Features | None = None) -> str:
+    """A few lines for an agent, straight from the graph: what this state supports.
+
+    Appended to read-backs (and refusals) by the proxy so the agent learns the state's
+    affordances without spending a turn on `mcpgraphy_affordances`. Each entry names the
+    action with its non-id arguments and, when known, what it changes. Read-only tools are
+    left out."""
+    groups: dict[str, list[str]] = {
+        "ok": [],
+        "needs approval": [],
+        "uncertain": [],
+        "not supported": [],
+        "untested": [],
+    }
+    for o in offers:
+        if spec.tool(o.tool).effect is EffectClass.READ_ONLY:
+            continue
+        args = ", ".join(f"{k}={v}" for k, v in o.argument_template.items() if k != spec.id_param)
+        label = f"{o.tool}({args})" if args else o.tool
+        effects = [e for e in o.behavior.predicted_effects if not e.startswith("call fails")]
+        av = o.availability
+        if av is Availability.CANDIDATE:
+            key = "ok"
+        elif av is Availability.CANDIDATE_REQUIRES_APPROVAL:
+            key = "needs approval"
+        elif av is Availability.UNCERTAIN_CANDIDATE:
+            key = "uncertain"
+        elif av is Availability.NOT_SUPPORTED_FROM_THIS_STATE:
+            key = "not supported"
+        else:
+            key = "untested"
+        if key in ("ok", "needs approval", "uncertain") and effects:
+            label += " -> " + "; ".join(effects)
+        groups[key].append(label)
+    head = "mcpgraphy, from this state"
+    if state:
+        head += " [" + ", ".join(f"{k}={v}" for k, v in sorted(state.items())) + "]"
+    lines = [f"  {k}: {'; '.join(sorted(set(v)))}" for k, v in groups.items() if v]
+    return head + ":\n" + "\n".join(lines)

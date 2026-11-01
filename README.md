@@ -61,6 +61,19 @@ Three things in that table decided the design:
 
 Full tables, the ablations, and the method are in [docs/BENCHMARK.md](https://github.com/hemanth1999k/mcpgraphy/blob/main/docs/BENCHMARK.md). Rerun it yourself in about 20 seconds: `mcpgraphy benchmark run --suite stateful-v1 --seed 42`.
 
+### With a real LLM agent
+
+Same 200 tasks, same oracle, GPT-5.4-mini calling the tools itself. Four ways of putting mcpgraphy in front of it, from cheapest to most thorough. Prices are OpenAI list prices.
+
+| agent sees | completed (achievable) | correct abstain (unreachable) | claimed success falsely | invalid calls / task | tokens / task | cost / task |
+|---|---|---|---|---|---|---|
+| raw tools | 78% | 86% | 10 of 200 | 1.09 | 2,614 | $0.0023 |
+| proxy, block only; a refusal carries the hint | 95% | 90% | 7 | 0.51 | 3,206 | $0.0028 |
+| **proxy with inline hints (default)** | **97%** | **99%** | **1** | 0.51 | 4,513 | $0.0038 |
+| proxy + `mcpgraphy_affordances` tool | 94% | 93% | 6 | 0.36 | 6,654 | $0.0053 |
+
+The honest column is tokens: mcpgraphy costs more of them, 1.7x in the default configuration, because the hint rides on every read and the agent does more of the task. Raw is cheaper partly by doing less: on the unreachable tasks it archived a release it had been asked to make editable and then reported success. The design lesson is in the second row's history: blocking without saying what else is possible dropped completion to 47% in an earlier run, so a refusal now carries the same hint a read does. Method, per-category tables and caveats are in [docs/BENCHMARK.md](https://github.com/hemanth1999k/mcpgraphy/blob/main/docs/BENCHMARK.md); rerun with `OPENAI_API_KEY=... mcpgraphy benchmark llm` for about three dollars.
+
 ## What you get
 
 The agent sees the downstream tools plus four of mcpgraphy's own:
@@ -72,7 +85,16 @@ The agent sees the downstream tools plus four of mcpgraphy's own:
 | `mcpgraphy_graph(format)` | the whole learned graph as JSON (authoritative) or Mermaid |
 | `mcpgraphy_status()` | calls recorded, warnings, blocks, current model version |
 
-Every blocked or warned call carries its reason in the response, for example `observed to fail from state [exists=False] (2 observations)`. The log, the graph and every decision persist in a SQLite file, so a restarted proxy keeps what it learned and you can audit what it did.
+Every read of a resource comes back with a few lines from the graph, so the agent learns the state's affordances without an extra turn:
+
+```text
+mcpgraphy, from this state [status=DRAFT, tests_passed=True]:
+  ok: edit_release(title=...) -> tests_passed becomes false; run_tests -> no state change
+  uncertain: publish_release -> status becomes PUBLISHED
+  not supported: archive_release
+```
+
+Refusals carry the same lines, and every blocked or warned call carries its reason, for example `observed to fail from state [exists=False] (2 observations)`. Turn the hints off with `--no-hints`. The log, the graph and every decision persist in a SQLite file, so a restarted proxy keeps what it learned and you can audit what it did.
 
 ## Usage
 

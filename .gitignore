@@ -12,3 +12,4 @@ build/
 *.journal.jsonl
 experiments/runs/
 .DS_Store
+experiments/llm/
