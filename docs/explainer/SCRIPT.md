@@ -16,7 +16,7 @@ Timestamps match the scenes. Read at a normal pace; each line fits its scene wit
 | 0:28 | From that evidence, it builds a graph. Nodes are states it actually observed. Edges are what happened from each one, how often, and whether later calls agreed. Unknown stays unknown. |
 | 0:41 | Ask about a resource, and you get offers for its state right now. Run tests? Supported. Publish? Failed every time from here. Archive? Uncertain, and it needs approval. |
 | 0:52 | Three policies. Observe just learns. Warn passes everything through, with a note. Block stops the calls the evidence says will fail, before the server ever sees them. |
-| 1:03 | We measured it with a real GPT agent. Raw tools finished seventy-four percent of tasks. Behind MCPgraphy: ninety-nine. Fewer bad calls, no false successes. More tokens per task, and fewer per task done. |
+| 1:03 | With a real GPT agent: raw tools finished seventy-four percent of tasks. Behind MCPgraphy, ninety-nine, with no false successes. More tokens per task, fewer per task done. |
 | 1:14 | pip install mcpgraphy. Put it in front of any MCP server. Map first. Act second. |
 
 Pronunciation: "M-C-P graphy", with "graphy" rhyming with "coffee". For a text-to-speech voice, spell it "MCP graph-ee".
