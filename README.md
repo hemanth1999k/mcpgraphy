@@ -63,14 +63,31 @@ Full tables, the ablations, and the method are in [docs/BENCHMARK.md](https://gi
 
 ### With a real LLM agent
 
-Same 200 tasks, same oracle, GPT-5.4-mini calling the tools itself. Raw tools, versus the same tools behind the proxy as it ships: the block gate plus one line from the graph on every read, every action result and every refusal. Prices are OpenAI list prices.
+Same 200 jobs, same oracle, GPT-5.4-mini making the tool calls itself. Raw tools, versus the same tools behind the proxy as it ships: the block gate plus one line from the graph on every read, every action result and every refusal.
 
-| agent sees | jobs finished (achievable) | correct abstain (unreachable) | claimed success falsely | invalid calls / job | **tokens per job done** | tokens per job attempted |
-|---|---|---|---|---|---|---|
-| raw tools | 74% | 86% | 10 of 200 | 1.03 | 5,154 | 2,474 |
-| **behind MCPgraphy** | **99%** | **100%** | **0** | **0.43** | **4,799** | 3,095 |
+<p align="center"><img src="https://raw.githubusercontent.com/hemanth1999k/mcpgraphy/main/docs/img/results.png" alt="GPT-5.4-mini on 200 jobs, raw tools vs behind MCPgraphy: jobs finished 74% vs 99%, false success claims 10 vs 0, rejected calls per job 1.03 vs 0.43, tokens per job done 5,154 vs 4,799" width="1000"></p>
 
-Measure from the start of a job to the end of it. The same total spend finishes 129 jobs behind MCPgraphy against 96 raw, so each finished job costs 7% fewer tokens, and takes fewer model turns (4.2 against 4.5). Raw spends 573 tokens per job, almost a quarter of its budget, on calls the server rejects; behind MCPgraphy that is 314. The column raw wins is tokens per job *attempted*, and it wins it partly by quitting: on the unreachable jobs it archived a release it had been asked to make editable, then reported success. At GPT-5.4-mini list prices a job costs about a quarter of a cent either way.
+**How a job is counted.** The agent gets a goal ("make this release PUBLISHED") and the server's tools. Each time it decides what to do next, that is one *model turn*, and the whole conversation so far is sent to the model again, which is where the tokens go. Each tool it invokes is a *tool call*; the oracle judges every mutating call before it runs, so a *rejected call* is one the server would refuse, and a *refused call* is one the proxy stopped first. A job ends when the agent says the goal is reached (checked against the server; a wrong claim is a *false success*), says it is unreachable, or runs out of steps. Everything below is per job, averaged over the 200.
+
+| per job | raw tools | behind MCPgraphy |
+|---|---|---|
+| jobs finished (of the achievable ones) | 74% | **99%** |
+| unreachable jobs correctly declared unreachable | 86% | **100%** |
+| false success claims (of 200) | 10 | **0** |
+| tool calls | 3.46 | 3.08 |
+| model turns | 4.46 | 4.22 |
+| rejected calls (server would refuse) | 1.03 | **0.43** |
+| refused calls (proxy stopped them) | 0 | 0.15 |
+| valid calls wrongly blocked | 0 | 0 |
+| tokens per job done | 5,154 | **4,799** |
+| tokens per job attempted | 2,474 | 3,095 |
+| cost per job done, list price | $0.0046 | **$0.0041** |
+
+Measured start of job to end of job, the proxy finishes 129 jobs against 96 on the same kind of budget, so each finished job costs 7% fewer tokens, in fewer tool calls and fewer model turns. The one column raw wins is tokens per job *attempted*, and it wins it partly by quitting: on the unreachable jobs it archived a release it had been asked to make editable, then reported success.
+
+<p align="center"><img src="https://raw.githubusercontent.com/hemanth1999k/mcpgraphy/main/docs/img/tokens.png" alt="Where the tokens go per job attempted: raw tools spend 573 of 2,474 tokens on rejected calls; behind MCPgraphy 314 rejected, 104 refused, and the productive share doubles" width="1000"></p>
+
+Almost a quarter of raw's tokens go to turns that end in a call the server rejects. Behind MCPgraphy the agent spends its tokens on the work instead, and each turn carries about 60 more tokens for the graph line.
 
 What we tried on the way is in [docs/BENCHMARK.md](https://github.com/hemanth1999k/mcpgraphy/blob/main/docs/BENCHMARK.md): refusing calls without saying what else is possible dropped completion to 47%; a separate affordances tool was the most precise and cost 2.5x; a one-call route executor made things worse. Rerun with `OPENAI_API_KEY=... mcpgraphy benchmark llm` for about a dollar.
 
